@@ -1,0 +1,13 @@
+{
+  "name": "kite-dashboard-single-page",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/update-page.mjs",
+    "check": "node --check scripts/update-page.mjs && node --check scripts/data-pipeline.mjs && node --check src/runtime.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

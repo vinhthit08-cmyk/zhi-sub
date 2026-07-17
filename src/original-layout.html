@@ -1,0 +1,1734 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>风筝创想家 · 智析学情 | 全维度数据驾驶舱</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: linear-gradient(135deg, #0a0f1e 0%, #07111f 50%, #03060c 100%); font-family: 'Inter', sans-serif; padding: 20px 24px; color: #eef5ff; min-height: 100vh; }
+        .dashboard { max-width: 1600px; margin: 0 auto; }
+        
+        /* 头部样式 */
+        .header { margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding: 20px 28px; background: rgba(10, 20, 35, 0.7); backdrop-filter: blur(12px); border-radius: 32px; border: 1px solid rgba(59, 201, 219, 0.2); }
+        .title-section h1 { font-size: 1.6rem; font-weight: 700; background: linear-gradient(120deg, #aaffff, #3b82f6); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .title-section p { color: #9ab3d5; font-size: 0.75rem; margin-top: 6px; }
+        .control-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .control-bar select, .refresh-btn { background: #0f172f; border: 1px solid #2a3c5c; padding: 8px 18px; border-radius: 40px; font-size: 0.85rem; color: #c4e0ff; cursor: pointer; transition: all 0.2s; }
+        .refresh-btn { background: linear-gradient(95deg, #0f2b4f, #1a3a6e); border-color: #2e7bbf; color: white; }
+        .refresh-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,201,219,0.2); }
+        
+        /* 统计卡片网格 */
+        .stats-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 16px; margin-bottom: 28px; }
+        .stat-card { background: rgba(8, 20, 36, 0.6); backdrop-filter: blur(8px); border-radius: 20px; padding: 14px 12px; display: flex; align-items: center; gap: 12px; border: 1px solid rgba(59, 201, 219, 0.2); transition: all 0.2s; }
+        .stat-card:hover { transform: translateY(-2px); border-color: rgba(59,201,219,0.5); background: rgba(10, 30, 50, 0.7); }
+        .stat-icon { width: 44px; height: 44px; background: rgba(59,201,219,0.15); border-radius: 22px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; color: #3bc9db; }
+        .stat-info h4 { font-size: 0.7rem; font-weight: 500; color: #90b8e0; letter-spacing: 0.5px; margin-bottom: 4px; }
+        .stat-info .value { font-size: 1.4rem; font-weight: 700; color: #f0f9ff; line-height: 1.2; }
+        
+        /* 卡片通用样式 */
+        .card { background: rgba(10, 22, 38, 0.6); backdrop-filter: blur(10px); border-radius: 24px; padding: 20px 24px; margin-bottom: 24px; border: 1px solid rgba(59, 201, 219, 0.2); transition: all 0.2s; }
+        .card:hover { border-color: rgba(59,201,219,0.35); background: rgba(12, 25, 42, 0.65); }
+        .card-title { font-size: 1.2rem; font-weight: 600; margin-bottom: 18px; display: flex; align-items: center; gap: 10px; border-left: 4px solid #3bc9db; padding-left: 16px; color: #e0f2fe; }
+        .card-title .badge { margin-left: 12px; background: rgba(59,201,219,0.2); padding: 4px 12px; border-radius: 20px; font-size: 0.7rem; font-weight: normal; }
+        
+        /* 两列布局 */
+        .row-2cols { display: flex; gap: 24px; flex-wrap: wrap; }
+        .col { flex: 1; min-width: 300px; }
+        
+        /* 表格样式 */
+        .table-wrapper { overflow-x: auto; border-radius: 16px; max-height: 500px; overflow-y: auto; scrollbar-width: thin; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; min-width: 600px; }
+        .data-table th { background: rgba(7, 26, 43, 0.95); padding: 12px 10px; text-align: center; font-weight: 600; color: #7bb3e0; position: sticky; top: 0; z-index: 1; border-bottom: 1px solid #3bc9db; font-size: 0.75rem; }
+        .data-table td { padding: 10px 8px; text-align: center; border-bottom: 1px solid rgba(47, 107, 143, 0.3); }
+        .data-table tr:hover { background: rgba(15, 43, 70, 0.5); cursor: pointer; }
+        .rank-number { font-weight: 700; color: #ffd966; font-size: 0.85rem; }
+        .name-link { color: #aaddff; font-weight: 600; text-decoration: underline; cursor: pointer; }
+        
+        /* 章节表格 */
+        .chapter-table-wrapper { overflow-x: auto; border-radius: 16px; max-height: 400px; overflow-y: auto; }
+        .chapter-table { width: 100%; border-collapse: collapse; font-size: 0.7rem; min-width: 400px; }
+        .chapter-table th { background: rgba(7, 26, 43, 0.95); padding: 10px 8px; text-align: center; font-weight: 600; color: #7bb3e0; position: sticky; top: 0; z-index: 1; border-bottom: 1px solid #3bc9db; }
+        .chapter-table td { padding: 8px 8px; text-align: center; border-bottom: 1px solid rgba(47, 107, 143, 0.3); }
+        .chapter-table tr:hover { background: rgba(15, 43, 70, 0.5); cursor: pointer; }
+        .chapter-table td:first-child { font-weight: 700; color: #ffd966; }
+        .chapter-table td:last-child { font-weight: 700; color: #5bc0ff; }
+        
+        /* 雷达图和班级平均分 */
+        .radar-container { background: rgba(10, 22, 38, 0.5); border-radius: 20px; padding: 16px; margin-bottom: 20px; }
+        .avg-container { background: rgba(10, 22, 38, 0.5); border-radius: 20px; padding: 16px; }
+        .chart-box { width: 100%; height: 300px; }
+        .class-avg-list { font-size: 0.75rem; margin-top: 12px; max-height: 220px; overflow-y: auto; }
+        .class-avg-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(59, 201, 219, 0.15); }
+        .class-avg-item:last-child { border-bottom: none; }
+        .class-avg-item span:first-child { color: #c4e4ff; font-weight: 500; }
+        .class-avg-item span:last-child { color: #3bc9db; font-weight: 700; font-size: 0.9rem; }
+        
+        /* 标签样式 */
+        .badge { background: rgba(14, 42, 62, 0.8); padding: 4px 12px; border-radius: 20px; font-size: 0.7rem; font-weight: 500; border: 1px solid #2f6b8f; }
+        .chapter-select { background: #0a1428; border: 1px solid #3bc9db; font-weight: 500; font-size: 0.85rem; color: #d6f0ff; padding: 8px 16px; border-radius: 30px; cursor: pointer; transition: all 0.2s; }
+        .chapter-select:hover { background: #1a2a4a; border-color: #5bc0ff; }
+        
+        /* 留言和笔记列表 */
+        .data-list { max-height: 400px; overflow-y: auto; background: rgba(5, 18, 31, 0.4); border-radius: 16px; padding: 8px; scrollbar-width: thin; }
+        .msg-item { padding: 14px 12px; border-bottom: 1px solid rgba(26, 56, 87, 0.4); transition: background 0.2s; }
+        .msg-item:hover { background: rgba(59, 201, 219, 0.05); }
+        .msg-item:last-child { border-bottom: none; }
+        .msg-author { font-weight: 600; color: #7fc9ff; }
+        .msg-time { font-size: 0.55rem; color: #688bb3; margin-left: 10px; }
+        .msg-content { margin-top: 8px; font-size: 0.75rem; line-height: 1.4; color: #d4eaff; }
+        .like-count { font-size: 0.65rem; margin-top: 8px; color: #f59e0b; display: flex; align-items: center; gap: 6px; }
+        
+        /* AI生图画廊 */
+        .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px; max-height: 380px; overflow-y: auto; padding: 8px; }
+        .gallery-item { background: rgba(8, 26, 42, 0.8); border-radius: 14px; overflow: hidden; border: 1px solid #2d6f9f; cursor: pointer; transition: all 0.2s; }
+        .gallery-item:hover { transform: translateY(-4px); border-color: #3bc9db; box-shadow: 0 8px 20px rgba(59,201,219,0.2); }
+        .gallery-item img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; background: #0a1a2a; display: block; }
+        .gallery-name { padding: 8px 6px; font-size: 11px; text-align: center; color: #cae9ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(0,0,0,0.6); font-weight: 500; }
+        
+        /* 证书列表 */
+        .cert-scroll { max-height: 380px; overflow-y: auto; background: rgba(5, 18, 31, 0.3); border-radius: 16px; padding: 8px; }
+        .cert-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+        .cert-card { background: linear-gradient(135deg, rgba(15, 42, 63, 0.9) 0%, rgba(9, 28, 44, 0.9) 100%); border: 1px solid #2e7f9e; border-radius: 12px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; transition: all 0.2s; }
+        .cert-card:hover { transform: translateX(4px); border-color: #3bc9db; }
+        .cert-name { font-weight: 700; font-size: 0.8rem; color: #d4f4ff; }
+        .cert-class { font-size: 0.6rem; color: #8cb3d9; margin-top: 2px; }
+        
+        /* 图表容器 */
+        .chart-container { width: 100%; height: 350px; position: relative; overflow: hidden; background: rgba(5, 18, 31, 0.3); border-radius: 16px; padding: 12px; }
+        .bar-chart { width: 100%; height: 100%; cursor: pointer; }
+        .zoom-hint { text-align: right; font-size: 0.65rem; color: #5b9ecf; margin-top: 8px; cursor: pointer; display: inline-block; transition: color 0.2s; }
+        .zoom-hint:hover { color: #3bc9db; }
+        
+        /* 章节标题区域 */
+        .chapter-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+        .chapter-controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        
+        /* 模态框 */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); backdrop-filter: blur(12px); z-index: 1000; display: flex; align-items: center; justify-content: center; visibility: hidden; opacity: 0; transition: all 0.2s; }
+        .modal.open { visibility: visible; opacity: 1; }
+        .modal-content { background: #0a1428; border-radius: 28px; max-width: 900px; width: 90%; padding: 28px; border: 1px solid #3bc9db; position: relative; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+        .modal-close { position: absolute; top: 16px; right: 20px; font-size: 26px; cursor: pointer; background: none; border: none; color: #aaccff; transition: color 0.2s; z-index: 10; }
+        .modal-close:hover { color: #ff6b6b; }
+        .image-modal-content { max-width: 85vw; width: auto; text-align: center; }
+        .image-modal-content img { max-width: 100%; max-height: 75vh; border-radius: 16px; }
+        .student-modal-content { max-width: 920px; width: 92%; padding: 28px; max-height: 92vh; overflow-y: auto; }
+        .student-modal-content h3 { font-size: 1.5rem; margin-bottom: 20px; text-align: center; color: #aaffff; }
+        .student-info { background: rgba(5, 18, 31, 0.6); border-radius: 16px; padding: 18px; margin-bottom: 24px; font-size: 0.9rem; text-align: center; line-height: 1.6; }
+        .student-radar-container { height: 340px; width: 100%; margin-top: 10px; }
+        .student-ai-panel { margin-top: 18px; border: 1px solid rgba(59, 201, 219, 0.25); border-radius: 18px; background: rgba(3, 15, 28, 0.58); padding: 16px; }
+        .student-ai-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+        .student-ai-toolbar strong { color: #aaffff; font-size: 0.94rem; }
+        .student-ai-status { color: #86bde0; font-size: 0.74rem; }
+        .student-ai-result { color: #e6fbff; line-height: 1.68; font-size: 0.84rem; max-height: 220px; overflow-y: auto; }
+        .student-ai-result.loading { background-image: linear-gradient(90deg, rgba(59, 201, 219, 0.04), rgba(122, 167, 255, 0.10), rgba(59, 201, 219, 0.04)); background-size: 220% 100%; animation: aiLoading 1.5s linear infinite; border-radius: 12px; padding: 10px; }
+        
+        /* 提示和页脚 */
+        .progress-hint { position: fixed; bottom: 20px; right: 20px; background: #1a2a3a; border-radius: 30px; padding: 8px 18px; z-index: 2000; border: 1px solid #3bc9db; font-size: 12px; display: none; backdrop-filter: blur(4px); }
+        .progress-hint.show { display: block; }
+        .footer { text-align: center; font-size: 0.7rem; color: #5b86a5; margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(59,201,219,0.15); }
+        .section-header { font-weight: 600; margin-bottom: 14px; font-size: 0.9rem; color: #c4e4ff; display: flex; align-items: center; gap: 10px; }
+        .current-class-badge { background: #3bc9db20; border: 1px solid #3bc9db; border-radius: 20px; padding: 4px 14px; font-size: 0.7rem; margin-left: 12px; font-weight: normal; }
+
+        /* 智能学情分析 */
+        .ai-insight-card { position: relative; overflow: hidden; border-color: rgba(80, 230, 255, 0.36); background: radial-gradient(circle at 18% 20%, rgba(59, 201, 219, 0.22), transparent 30%), radial-gradient(circle at 85% 10%, rgba(82, 123, 255, 0.16), transparent 26%), linear-gradient(135deg, rgba(8, 23, 42, 0.84), rgba(5, 14, 26, 0.74)); box-shadow: inset 0 0 0 1px rgba(180, 245, 255, 0.04), 0 18px 42px rgba(0, 0, 0, 0.24); }
+        .ai-insight-card::before { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 0%, rgba(170, 255, 255, 0.10) 45%, transparent 58%); transform: translateX(-70%); animation: aiScan 6s ease-in-out infinite; pointer-events: none; }
+        @keyframes aiScan { 0%, 42% { transform: translateX(-75%); opacity: 0; } 54% { opacity: 1; } 100% { transform: translateX(80%); opacity: 0; } }
+        .ai-insight-layout { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(220px, 0.72fr) minmax(0, 2.2fr); gap: 24px; align-items: stretch; }
+        .ai-lottie-shell { min-height: 260px; border-radius: 22px; border: 1px solid rgba(59, 201, 219, 0.26); background: linear-gradient(145deg, rgba(2, 13, 25, 0.64), rgba(11, 32, 55, 0.46)); display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+        .ai-lottie-shell::before, .ai-lottie-shell::after { content: ""; position: absolute; border: 1px solid rgba(111, 225, 255, 0.28); border-radius: 999px; inset: 26px; animation: orbitPulse 3.6s ease-in-out infinite; }
+        .ai-lottie-shell::after { inset: 54px; border-color: rgba(126, 167, 255, 0.22); animation-delay: 0.9s; }
+        @keyframes orbitPulse { 0%, 100% { transform: scale(0.94); opacity: 0.45; } 50% { transform: scale(1.03); opacity: 0.9; } }
+        .ai-lottie { width: min(92%, 290px); height: 230px; position: relative; z-index: 1; }
+        .ai-lottie-fallback { position: absolute; z-index: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; color: #9defff; font-weight: 700; letter-spacing: 0.04em; opacity: 0.72; }
+        .ai-lottie-fallback span { width: 86px; height: 86px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(59, 201, 219, 0.14); border: 1px solid rgba(59, 201, 219, 0.42); font-size: 2.4rem; box-shadow: 0 0 34px rgba(59, 201, 219, 0.22); }
+        .ai-insight-main { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+        .ai-title-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+        .ai-title-row .card-title { margin-bottom: 0; }
+        .ai-model-pill { border: 1px solid rgba(59, 201, 219, 0.34); background: rgba(8, 31, 53, 0.72); color: #b6e8ff; border-radius: 999px; padding: 7px 12px; font-size: 0.72rem; white-space: nowrap; }
+        .ai-insight-kpis { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 12px; }
+        .ai-fact { min-height: 76px; border-radius: 16px; border: 1px solid rgba(97, 180, 229, 0.18); background: rgba(4, 16, 31, 0.46); padding: 12px; }
+        .ai-fact small { display: block; color: #7da7ce; font-size: 0.68rem; margin-bottom: 8px; }
+        .ai-fact strong { color: #e8fbff; font-size: 1rem; line-height: 1.28; word-break: break-word; }
+        .ai-insight-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .ai-analyze-btn, .ai-secondary-btn { border: 0; border-radius: 999px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s; font-weight: 700; }
+        .ai-analyze-btn { min-width: 168px; padding: 12px 20px; color: #03131f; background: linear-gradient(120deg, #aaffff, #50d6ff 45%, #7aa7ff); box-shadow: 0 10px 24px rgba(59, 201, 219, 0.22); }
+        .ai-secondary-btn { padding: 11px 16px; color: #c7eaff; background: rgba(12, 38, 62, 0.78); border: 1px solid rgba(59, 201, 219, 0.28); }
+        .ai-analyze-btn:hover, .ai-secondary-btn:hover { transform: translateY(-1px); box-shadow: 0 12px 26px rgba(59, 201, 219, 0.16); }
+        .ai-analyze-btn:disabled, .ai-secondary-btn:disabled { cursor: not-allowed; opacity: 0.55; transform: none; box-shadow: none; }
+        .ai-status { color: #80b7db; font-size: 0.76rem; }
+        .ai-insight-result { min-height: 172px; max-height: 340px; overflow-y: auto; border-radius: 18px; border: 1px solid rgba(78, 167, 219, 0.22); background: rgba(2, 10, 20, 0.52); padding: 16px; color: #dff7ff; line-height: 1.72; font-size: 0.86rem; }
+        .ai-insight-result.loading { background-image: linear-gradient(90deg, rgba(59, 201, 219, 0.05), rgba(122, 167, 255, 0.10), rgba(59, 201, 219, 0.05)); background-size: 220% 100%; animation: aiLoading 1.5s linear infinite; }
+        @keyframes aiLoading { from { background-position: 220% 0; } to { background-position: -220% 0; } }
+        .ai-insight-result p { margin-bottom: 10px; }
+        .ai-insight-result .ai-subtitle { color: #9bf6ff; font-weight: 800; margin-top: 6px; }
+        .ai-insight-result .ai-note { color: #89b7d6; font-size: 0.78rem; border-top: 1px solid rgba(59,201,219,0.14); padding-top: 10px; margin-top: 10px; }
+        
+        /* 响应式 */
+        @media (max-width: 1200px) { .stats-grid { grid-template-columns: repeat(4, 1fr); } }
+        @media (max-width: 1100px) { .ai-insight-layout { grid-template-columns: 1fr; } .ai-lottie-shell { min-height: 220px; } .ai-insight-kpis { grid-template-columns: repeat(2, minmax(120px, 1fr)); } }
+        @media (max-width: 900px) { .stats-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 700px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } body { padding: 16px; } .card { padding: 16px; } .ai-insight-kpis { grid-template-columns: 1fr; } .ai-title-row { align-items: flex-start; } .ai-model-pill { white-space: normal; } }
+        @media (max-width: 500px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } .row-2cols { flex-direction: column; } }
+        
+        /* 滚动条美化 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(10, 20, 35, 0.5); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: #3bc9db; border-radius: 3px; opacity: 0.5; }
+        ::-webkit-scrollbar-thumb:hover { background: #5bc0ff; }
+    </style>
+</head>
+<body>
+<div class="dashboard">
+    <div class="header">
+        <div class="title-section">
+            <h1>🪁 风筝创想家 · 智析学情· 全景可视化数据大屏</h1>
+            <p>QuickForm实时数据 | 章节成绩 | 留言笔记 | AI生图画廊 | 六维能力雷达</p>
+        </div>
+        <div class="control-bar">
+            <select id="classFilterSelect"><option value="all">🌐 全部班级</option></select>
+            <button class="refresh-btn" id="refreshBtn">⟳ 刷新数据</button>
+        </div>
+    </div>
+    
+    <!-- KPI 统计卡片 -->
+    <div class="stats-grid" id="kpiGrid"></div>
+
+    <!-- 智能学情分析 -->
+    <div class="card ai-insight-card" id="aiLearningInsightCard">
+        <div class="ai-insight-layout">
+            <div class="ai-lottie-shell">
+                <div class="ai-lottie-fallback"><span>智析</span><div>学情诊断</div></div>
+                <div id="aiLearningLottie" class="ai-lottie" aria-label="智能学情分析动画"></div>
+            </div>
+            <div class="ai-insight-main">
+                <div class="ai-title-row">
+                    <div class="card-title">🤖 智能学情分析 <span class="badge">薄弱点诊断 · 教学建议生成</span></div>
+                </div>
+                <div class="ai-insight-kpis" id="aiInsightQuickFacts">
+                    <div class="ai-fact"><small>分析对象</small><strong>等待数据加载</strong></div>
+                    <div class="ai-fact"><small>薄弱章节</small><strong>--</strong></div>
+                    <div class="ai-fact"><small>薄弱能力</small><strong>--</strong></div>
+                    <div class="ai-fact"><small>重点关注</small><strong>--</strong></div>
+                </div>
+                <div class="ai-insight-actions">
+                    <button class="ai-analyze-btn" id="aiAnalyzeBtn" type="button">学情分析</button>
+                    <button class="ai-secondary-btn" id="aiCopyBtn" type="button">复制分析</button>
+                    <span class="ai-status" id="aiInsightStatus">点击按钮后，将基于当前筛选班级进行诊断</span>
+                </div>
+                <div class="ai-insight-result" id="aiInsightResult">
+                    请选择“全部班级”或某个班级后点击“学情分析”。系统会结合总分、章节成绩、六维能力、证书、留言笔记与生图作品数据，分析薄弱点并给出课堂教学建议。
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 第一行：排名和雷达图 -->
+    <div class="card">
+        <div class="card-title">📊 总分全量排名 & 班级能力画像 <span id="currentFilterBadge" class="current-class-badge">全部班级</span></div>
+        <div class="row-2cols">
+            <div class="col">
+                <div class="section-header">🏆 总分排行榜 <span style="font-size:11px; color:#688bb3;">（点击姓名查看个人画像）</span></div>
+                <div class="table-wrapper">
+                    <table class="data-table" id="rankingTable">
+                        <thead><tr><th>🏅排名</th><th>👤姓名</th><th>📚班级</th><th>⭐总分</th><th>✅完成章节</th><th>⏱️用时</th></tr></thead>
+                        <tbody id="rankingTableBody"><tr><td colspan="6" style="text-align:center;">加载中...</td</tr</tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="col">
+                <div class="radar-container">
+                    <div class="section-header">🌟 班级能力雷达图</div>
+                    <div id="radarChart" class="chart-box"></div>
+                </div>
+                <div class="avg-container">
+                    <div class="section-header">📈 班级平均分对比</div>
+                    <div id="classAvgList" class="class-avg-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 第二行：章节成绩 -->
+    <div class="card">
+        <div class="card-title">📖 各章节成绩 & 排名 <span class="badge">章节成绩满分20分 | 点击柱状图可放大</span></div>
+        <div class="chapter-header">
+            <div class="chapter-controls">
+                <select id="chapterSelect" class="chapter-select">
+                    <option value="1">⭐ 第一章：时空溯源</option><option value="2">⭐ 第二章：匠心辨物</option>
+                    <option value="3">⭐ 第三章：风筝大观园</option><option value="4">⭐ 第四章：巧夺天工</option>
+                    <option value="5">⭐ 第五章：乘风破浪</option><option value="6">⭐ 第六章：蔚然成风</option>
+                </select>
+            </div>
+            <div class="zoom-hint" id="zoomHintBtn">🔍 点击图表放大动态展示 →</div>
+        </div>
+        <div class="row-2cols">
+            <div class="col">
+                <div id="chapterChartTitle" class="section-header">📊 章节得分分布</div>
+                <div class="chart-container"><div id="chapterBarChart" class="bar-chart"></div></div>
+            </div>
+            <div class="col">
+                <div class="section-header">🏅 章节排名明细</div>
+                <div class="chapter-table-wrapper">
+                    <table class="chapter-table" id="chapterRankTable">
+                        <thead><tr><th>🏅名次</th><th>👤姓名</th><th>📚班级</th><th>⭐得分</th></tr></thead>
+                        <tbody id="chapterRankTableBody"><tr><td colspan="4" style="text-align:center;">选择章节查看</td</tr</tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 第三行：AI生图和证书 -->
+    <div class="card">
+        <div class="card-title">✨ AI创意工坊 & 荣誉墙</div>
+        <div class="row-2cols" style="margin-bottom:24px;">
+            <div class="col">
+                <div class="section-header">🤖 AI生图作品 <span id="galleryCount" style="font-size:11px; color:#688bb3;"></span></div>
+                <div id="aiGallery" class="gallery-grid"><div style="grid-column:1/-1; text-align:center; padding:40px;">加载中...</div></div>
+            </div>
+            <div class="col">
+                <div class="section-header">🏅 电子证书获得者 <span style="font-size:11px; color:#688bb3;">（总分≥80分）</span></div>
+                <div id="certList" class="cert-scroll"><div style="text-align:center; padding:40px;">加载中...</div></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 第四行：留言板和笔记 -->
+    <div class="card">
+        <div class="card-title">💬 互动社区</div>
+        <div class="row-2cols">
+            <div class="col">
+                <div class="section-header">💬 留言板 <span id="msgCountBadge" class="badge">0条</span> <span id="totalLikesBadge" class="badge">❤️ 0</span></div>
+                <div id="messageBoardList" class="data-list">加载中...</div>
+            </div>
+            <div class="col">
+                <div class="section-header">📓 学生笔记 <span id="noteCountBadge" class="badge">0条</span></div>
+                <div id="notesList" class="data-list">加载中...</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="footer">数据来源：QuickForm实时更新 | AI生图 | 数据自动累加</div>
+</div>
+
+<div id="progressHint" class="progress-hint">🔄 加载中...</div>
+<div id="barModal" class="modal"><div class="modal-content" style="max-width:1000px;"><button class="modal-close" onclick="closeBarModal()">✕</button><h3 id="modalBarTitle" style="margin-bottom:16px;"></h3><div id="fullBarChart" style="height:500px; width:100%;"></div></div></div>
+<div id="studentModal" class="modal"><div class="modal-content student-modal-content"><button class="modal-close" onclick="closeStudentModal()">✕</button><h3 id="modalStudentName"></h3><div id="modalStudentInfo" class="student-info"></div><div id="studentRadarContainer" class="student-radar-container"></div><div class="student-ai-panel"><div class="student-ai-toolbar"><strong>🎯 个人精准分析</strong><div><button class="ai-secondary-btn" id="studentAiAnalyzeBtn" type="button">分析该学生</button> <span class="student-ai-status" id="studentAiStatus">点击学生后自动生成基础诊断</span></div></div><div class="student-ai-result" id="studentAiResult">请选择学生查看个人分析。</div></div></div></div>
+<div id="imageModal" class="modal"><div class="modal-content image-modal-content"><button class="modal-close" onclick="closeImageModal()">✕</button><img id="modalImage" src=""><div id="modalImageTitle" style="margin-top:12px; color:#aaffff; text-align:center;"></div></div></div>
+
+<script>
+    // ==================== 配置 ====================
+    const SUPABASE_URL = '';
+    const SUPABASE_ANON_KEY = '';
+    // 旧接口继续保留只读；新增应用数据从新接口读取，避免影响历史数据
+    const QUICKFORM_API = '';
+    const QUICKFORM_NEW_API = '';
+    const QUICKFORM_APIS = [];
+    const QUICKFORM_LOCAL_BACKUPS = Object.fromEntries(QUICKFORM_APIS.map(apiUrl => {
+        const apiId = apiUrl.split('/').filter(Boolean).slice(-2, -1)[0];
+        return [apiUrl, `./quickform_backups/2026-07-17/${apiId}.json`];
+    }));
+    const DATA_CACHE_DB = 'kite-learning-data-cache-v2';
+    const DATA_CACHE_STORE = 'quickform-sources';
+    const DATA_CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+    const FETCH_TIMEOUT_MS = 15000;
+    const SUPABASE_PAGE_SIZE = 1000;
+    function toPlayerProxyUrl(url) {
+        if (location.hostname === '127.0.0.1' || location.hostname === 'localhost') {
+            return `/proxy?url=${encodeURIComponent(url)}`;
+        }
+        return url;
+    }
+    const ARK_RESPONSES_API = 'https://ark.cn-beijing.volces.com/api/v3/responses';
+    const ARK_API_KEY = '';
+    const AI_ANALYSIS_MODEL = 'deepseek-v4-pro-260425';
+    const AI_LEARNING_LOTTIE_URL = 'https://img.tofaka.com/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260530/Clwl/fe807c20-1183-11ee-a7e0-738836ffd98a.json';
+    const BASE_AI_IMAGE_COUNT = 235;  // AI生图基准235张
+    
+    // ==================== 永久AI生图作品（81张基准图片） ====================
+    const PERMANENT_AI_IMAGES = [
+        ["陈梦怡", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/gGQ5/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E9%99%88%E6%A2%A6%E6%80%A1_1.jpg"],
+        ["陈梦怡", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/yS1J/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E9%99%88%E6%A2%A6%E6%80%A1_2.jpg"],
+        ["陈梦怡", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/nSNH/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E9%99%88%E6%A2%A6%E6%80%A1_3.jpg"],
+        ["高玉", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/dyCP/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E9%AB%98%E7%8E%89.jpg"],
+        ["韩胜宇", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/N1Sc/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E9%9F%A9%E8%83%9C%E5%AE%87_1.jpg"],
+        ["韩胜宇", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/N4AH/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E9%9F%A9%E8%83%9C%E5%AE%87_2.jpg"],
+        ["韩胜宇", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/GSC7/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E9%9F%A9%E8%83%9C%E5%AE%87_3.jpg"],
+        ["韩胜宇", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/xwS2/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E9%9F%A9%E8%83%9C%E5%AE%87_4.jpg"],
+        ["韩胜宇", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/PG6s/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E9%9F%A9%E8%83%9C%E5%AE%87_5.jpg"],
+        ["韩胜宇", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/ZqoP/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E9%9F%A9%E8%83%9C%E5%AE%87_6.jpg"],
+        ["韩煜菡", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/HmMm/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E9%9F%A9%E7%85%9C%E8%8F%A1_1.jpg"],
+        ["韩煜菡", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/Zotd/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E9%9F%A9%E7%85%9C%E8%8F%A1_2.jpg"],
+        ["韩煜菡", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/W5rN/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E9%9F%A9%E7%85%9C%E8%8F%A1_3.jpg"],
+        ["韩煜菡", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/hcqA/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E9%9F%A9%E7%85%9C%E8%8F%A1_4.jpg"],
+        ["陆纯熙", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/mZUT/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E9%99%86%E7%BA%AF%E7%86%99_1.jpg"],
+        ["陆纯熙", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/0Sr7/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E9%99%86%E7%BA%AF%E7%86%99_2.jpg"],
+        ["陆纯熙", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/OZC3/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E9%99%86%E7%BA%AF%E7%86%99_3.jpg"],
+        ["王天琦", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/5kJe/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E7%8E%8B%E5%A4%A9%E7%90%A6.jpg"],
+        ["王宇宸", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/hZpd/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E7%8E%8B%E5%AE%87%E5%AE%B8_1.jpg"],
+        ["王宇宸", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/EZV7/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E7%8E%8B%E5%AE%87%E5%AE%B8_2.jpg"],
+        ["郭静茹", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/F5H9/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E9%83%AD%E9%9D%99%E8%8C%B9_1.jpg"],
+        ["郭静茹", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/Wrsg/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E9%83%AD%E9%9D%99%E8%8C%B9_2.jpg"],
+        ["李昊宇", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/Y3pa/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E6%9D%8E%E6%98%8A%E5%AE%87_1.jpg"],
+        ["李昊宇", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/Slrl/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E6%9D%8E%E6%98%8A%E5%AE%87_3.jpg"],
+        ["李语诺", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/6d0a/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E6%9D%8E%E8%AF%AD%E8%AF%BA_1.jpg"],
+        ["李语诺", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/wkVq/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E6%9D%8E%E8%AF%AD%E8%AF%BA_2.jpg"],
+        ["李语诺", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/qQTg/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E6%9D%8E%E8%AF%AD%E8%AF%BA_3.jpg"],
+        ["李语诺", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/LcNa/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E6%9D%8E%E8%AF%AD%E8%AF%BA_4.jpg"],
+        ["李语诺", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/4TDc/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E6%9D%8E%E8%AF%AD%E8%AF%BA_5.jpg"],
+        ["李语诺", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/71hn/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E6%9D%8E%E8%AF%AD%E8%AF%BA_6.jpg"],
+        ["戚程程", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/g20z/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E6%88%9A%E7%A8%8B%E7%A8%8B.jpg"],
+        ["徐博宇", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/a1Gb/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%BE%90%E5%8D%9A%E5%AE%87_1.jpg"],
+        ["徐博宇", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/l8CW/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%BE%90%E5%8D%9A%E5%AE%87_2.jpg"],
+        ["徐博宇", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/ngZ0/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%BE%90%E5%8D%9A%E5%AE%87_3.jpg"],
+        ["徐博宇", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/qxwC/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%BE%90%E5%8D%9A%E5%AE%87_4.jpg"],
+        ["徐博宇", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/d6xt/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%BE%90%E5%8D%9A%E5%AE%87_5.jpg"],
+        ["姚兰天", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/3CnN/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%A7%9A%E5%85%B0%E5%A4%A9_2.jpg"],
+        ["姚兰天", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/pfOr/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%A7%9A%E5%85%B0%E5%A4%A9_3.jpg"],
+        ["姚兰天", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/mCPi/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%A7%9A%E5%85%B0%E5%A4%A9_4.jpg"],
+        ["姚兰天", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/BM3a/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%A7%9A%E5%85%B0%E5%A4%A9_5.jpg"],
+        ["姚兰天", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/genb/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%A7%9A%E5%85%B0%E5%A4%A9_6.jpg"],
+        ["姚旭", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/kNkK/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%A7%9A%E6%97%AD.jpg"],
+        ["张思然", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/UqQ8/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%BC%A0%E6%80%9D%E7%84%B6.jpg"],
+        ["周瑾怡", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/UpDK/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%91%A8%E7%91%BE%E6%80%A1.jpg"],
+        ["周阔", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/8qlf/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%91%A8%E9%98%94_2.jpg"],
+        ["周阔", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/gLKM/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%91%A8%E9%98%94_3.jpg"],
+        ["周阔", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/Jl4k/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%91%A8%E9%98%94_4.jpg"],
+        ["周阔", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/hpjy/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%91%A8%E9%98%94_5.jpg"],
+        ["周阔", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/dEmN/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%91%A8%E9%98%94_6.jpg"],
+        ["周阔", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/gCKt/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%91%A8%E9%98%94_7.jpg"],
+        ["凡毅志", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/fERg/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%87%A1%E6%AF%85%E5%BF%97_1.jpg"],
+        ["凡毅志", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/4M5y/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%87%A1%E6%AF%85%E5%BF%97_2.jpg"],
+        ["凡毅志", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/79gz/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%87%A1%E6%AF%85%E5%BF%97_3.jpg"],
+        ["侍知瑶", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/TWEM/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E4%BE%8D%E7%9F%A5%E7%91%B6.jpg"],
+        ["乙", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/alPf/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E4%B9%99_1.jpg"],
+        ["乙", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/Tpd1/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E4%B9%99_2.jpg"],
+        ["乙", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/z5Fa/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E4%B9%99_3.jpg"],
+        ["周阔", "https://pic5.fukit.cn/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260421/wyJC/1024X1024/%E4%B8%8B%E8%BD%BD%E7%9A%84%E5%AD%A6%E7%94%9F%E5%9B%BE%E7%89%87/%E5%91%A8%E9%98%94_1.jpg"]
+    ];
+    
+    let supabaseClient = null;
+    let allStudents = [];
+    let allMessages = [];
+    let allNotes = [];
+    let allAIImages = { images: [], totalCount: BASE_AI_IMAGE_COUNT };
+    let currentClassFilter = "all";
+    let currentChapterId = 1;
+    let currentStudentForAI = null;
+    let radarChart, chapterBarChart, studentRadar, fullChartModal;
+    let currentBarChartData = { names: [], scores: [], chapterId: 1 };
+    const chapterNames = ["时空溯源", "匠心辨物", "风筝大观园", "巧夺天工", "乘风破浪", "蔚然成风"];
+    const abilityNames = ["美术创作", "科学探究", "动手实践", "合作交流", "创新思维", "文化理解"];
+    
+    // DOM 元素
+    const rankingTableBody = document.getElementById('rankingTableBody');
+    const chapterRankTableBody = document.getElementById('chapterRankTableBody');
+    const classFilterSelect = document.getElementById('classFilterSelect');
+    const chapterSelect = document.getElementById('chapterSelect');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const kpiGrid = document.getElementById('kpiGrid');
+    const aiGalleryDiv = document.getElementById('aiGallery');
+    const certListDiv = document.getElementById('certList');
+    const classAvgListDiv = document.getElementById('classAvgList');
+    const messageBoardDiv = document.getElementById('messageBoardList');
+    const notesListDiv = document.getElementById('notesList');
+    const msgCountBadge = document.getElementById('msgCountBadge');
+    const noteCountBadge = document.getElementById('noteCountBadge');
+    const totalLikesBadge = document.getElementById('totalLikesBadge');
+    const galleryCountSpan = document.getElementById('galleryCount');
+    const currentFilterBadge = document.getElementById('currentFilterBadge');
+    const aiInsightQuickFacts = document.getElementById('aiInsightQuickFacts');
+    const aiAnalyzeBtn = document.getElementById('aiAnalyzeBtn');
+    const aiCopyBtn = document.getElementById('aiCopyBtn');
+    const aiInsightStatus = document.getElementById('aiInsightStatus');
+    const aiInsightResult = document.getElementById('aiInsightResult');
+    const studentAiAnalyzeBtn = document.getElementById('studentAiAnalyzeBtn');
+    const studentAiStatus = document.getElementById('studentAiStatus');
+    const studentAiResult = document.getElementById('studentAiResult');
+    
+    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); }
+    
+    // 格式化时间：精确到时分秒
+    function formatStudyTime(seconds) {
+        if (!seconds && seconds !== 0) return '--';
+        let totalSecs = Math.floor(seconds);
+        let hours = Math.floor(totalSecs / 3600);
+        let minutes = Math.floor((totalSecs % 3600) / 60);
+        let secs = totalSecs % 60;
+        
+        if (hours > 0) {
+            return `${hours}小时${minutes}分${secs}秒`;
+        } else if (minutes > 0) {
+            return `${minutes}分${secs}秒`;
+        } else {
+            return `${secs}秒`;
+        }
+    }
+    
+    // 保留真实总分；不得为了展示效果随机改写原始数据
+    function fixLowTotalScore(score) {
+        if (score === null || score === undefined || score === '') return 0;
+        const numScore = Number(score);
+        return Number.isFinite(numScore) ? numScore : 0;
+    }
+    
+    // 章节成绩：只限制不超过20分
+    function limitChapterScore(score) {
+        let s = parseInt(score) || 0;
+        return Math.min(20, s);
+    }
+    
+    // 限制完成章节数不超过6
+    function limitCompletedChapters(chapters) {
+        let c = parseInt(chapters) || 0;
+        return Math.min(6, c);
+    }
+    
+    // 班级标准化
+    function normalizeClass(className) {
+        if (!className) return '五年级1班';
+        const match = className.match(/(\d+)/);
+        if (match) {
+            const num = parseInt(match[1]);
+            if (num >= 1 && num <= 9) return `五年级${num}班`;
+        }
+        if (className.includes('一')) return '五年级1班';
+        if (className.includes('二')) return '五年级2班';
+        if (className.includes('三')) return '五年级3班';
+        if (className.includes('四')) return '五年级4班';
+        if (className.includes('五')) return '五年级5班';
+        if (className.includes('六')) return '五年级6班';
+        if (className.includes('七')) return '五年级7班';
+        if (className.includes('八')) return '五年级8班';
+        if (className.includes('九')) return '五年级9班';
+        return '五年级1班';
+    }
+    
+    async function initSupabase() {
+        if (!supabaseClient) supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        return supabaseClient;
+    }
+
+    async function fetchAllSupabaseRows(table, columns = '*') {
+        await initSupabase();
+        const rows = [];
+        for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+            const to = from + SUPABASE_PAGE_SIZE - 1;
+            const { data, error } = await supabaseClient
+                .from(table)
+                .select(columns)
+                .order('id', { ascending: true })
+                .range(from, to);
+            if (error) throw new Error(`Supabase ${table}: ${error.message}`);
+            const page = Array.isArray(data) ? data : [];
+            rows.push(...page);
+            if (page.length < SUPABASE_PAGE_SIZE) break;
+        }
+        return rows;
+    }
+
+    const fetchStudentsFromSupabase = () => fetchAllSupabaseRows('students', '*');
+    const fetchScoresFromSupabase = () => fetchAllSupabaseRows('scores', 'id, student_id, chapter_id, score, time_spent, completed_at');
+    const fetchNotesFromSupabase = () => fetchAllSupabaseRows('notes', '*');
+    const fetchMessagesFromSupabase = () => fetchAllSupabaseRows('messages', '*');
+
+    function openDataCache() {
+        return new Promise((resolve, reject) => {
+            if (!window.indexedDB) return reject(new Error('当前环境不支持 IndexedDB'));
+            const request = indexedDB.open(DATA_CACHE_DB, 1);
+            request.onupgradeneeded = () => {
+                if (!request.result.objectStoreNames.contains(DATA_CACHE_STORE)) {
+                    request.result.createObjectStore(DATA_CACHE_STORE, { keyPath: 'apiUrl' });
+                }
+            };
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error || new Error('打开数据缓存失败'));
+        });
+    }
+
+    async function readCachedQuickFormSource(apiUrl) {
+        try {
+            const db = await openDataCache();
+            return await new Promise((resolve, reject) => {
+                const request = db.transaction(DATA_CACHE_STORE, 'readonly').objectStore(DATA_CACHE_STORE).get(apiUrl);
+                request.onsuccess = () => resolve(request.result || null);
+                request.onerror = () => reject(request.error);
+            });
+        } catch (error) {
+            console.warn('读取本地数据缓存失败:', error);
+            return null;
+        }
+    }
+
+    async function writeCachedQuickFormSource(apiUrl, submissions, reportedTotal) {
+        if (!Array.isArray(submissions) || !submissions.length) return;
+        try {
+            const db = await openDataCache();
+            await new Promise((resolve, reject) => {
+                const request = db.transaction(DATA_CACHE_STORE, 'readwrite').objectStore(DATA_CACHE_STORE).put({
+                    apiUrl,
+                    submissions,
+                    reportedTotal: Number(reportedTotal) || submissions.length,
+                    savedAt: Date.now()
+                });
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        } catch (error) {
+            console.warn('写入本地数据缓存失败:', error);
+        }
+    }
+
+    function parseQuickFormPayload(payload, apiUrl) {
+        if (payload && payload.error) throw new Error(payload.message || payload.error);
+        const submissions = Array.isArray(payload)
+            ? payload
+            : (payload?.submissions || payload?.data || payload?.records || []);
+        if (!Array.isArray(submissions)) throw new Error('接口返回格式不正确');
+        return {
+            data: submissions.map(item => ({ ...item, _quickformSource: apiUrl })),
+            reportedTotal: Number(payload?.total_submissions) || submissions.length
+        };
+    }
+
+    async function fetchJsonWithTimeout(url, timeoutMs = FETCH_TIMEOUT_MS) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok) throw new Error(payload?.message || `HTTP ${response.status}`);
+            return payload;
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    function quickFormFingerprint(item) {
+        const keyParts = [
+            item.id, item.submission_id, item.dataType, item.record_type, item.dataset_id,
+            item.global_chunk_index, item.messageId, item.commentId, item.noteId,
+            item.timestamp, item.submitted_at, item.submitTime, item.messageTime, item.likeTime,
+            item.name, item.studentName, item.userName, item.messageContent, item.commentContent,
+            item.imageUrl, item.url
+        ].map(value => value === undefined || value === null ? '' : String(value));
+        const compactKey = keyParts.join('|');
+        return compactKey.replace(/\|/g, '') ? compactKey : JSON.stringify(item);
+    }
+
+    function dedupeQuickFormData(rows) {
+        const unique = new Map();
+        for (const row of rows) {
+            const key = quickFormFingerprint(row);
+            if (!unique.has(key)) unique.set(key, row);
+        }
+        return Array.from(unique.values());
+    }
+
+    async function loadFastQuickFormData() {
+        const cached = await Promise.all(QUICKFORM_APIS.map(apiUrl => readCachedQuickFormSource(apiUrl)));
+        const cachedRows = cached.flatMap(item => item?.submissions || []);
+        if (cachedRows.length) return { data: dedupeQuickFormData(cachedRows), source: '浏览器缓存' };
+
+        const localResults = await Promise.all(QUICKFORM_APIS.map(async apiUrl => {
+            try {
+                const payload = await fetchJsonWithTimeout(QUICKFORM_LOCAL_BACKUPS[apiUrl], 5000);
+                return parseQuickFormPayload(payload, apiUrl).data;
+            } catch (error) {
+                return [];
+            }
+        }));
+        return { data: dedupeQuickFormData(localResults.flat()), source: '本地备份' };
+    }
+
+    async function fetchOneQuickFormData(apiUrl) {
+        let lastError = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                const payload = await fetchJsonWithTimeout(toPlayerProxyUrl(apiUrl));
+                const parsed = parseQuickFormPayload(payload, apiUrl);
+                await writeCachedQuickFormSource(apiUrl, parsed.data, parsed.reportedTotal);
+                return { apiUrl, ...parsed, source: '在线接口', ok: true };
+            } catch (error) {
+                lastError = error;
+                if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 600));
+            }
+        }
+
+        const cached = await readCachedQuickFormSource(apiUrl);
+        if (cached?.submissions?.length) {
+            return {
+                apiUrl,
+                data: cached.submissions,
+                reportedTotal: cached.reportedTotal || cached.submissions.length,
+                source: Date.now() - cached.savedAt > DATA_CACHE_MAX_AGE ? '历史缓存' : '浏览器缓存',
+                ok: false,
+                error: lastError?.message || '在线接口不可用'
+            };
+        }
+
+        try {
+            const payload = await fetchJsonWithTimeout(QUICKFORM_LOCAL_BACKUPS[apiUrl], 5000);
+            const parsed = parseQuickFormPayload(payload, apiUrl);
+            return { apiUrl, ...parsed, source: '本地备份', ok: false, error: lastError?.message || '' };
+        } catch (localError) {
+            return { apiUrl, data: [], reportedTotal: 0, source: '无可用备份', ok: false, error: lastError?.message || localError.message };
+        }
+    }
+
+    async function fetchQuickFormData() {
+        const sources = await Promise.all(QUICKFORM_APIS.map(fetchOneQuickFormData));
+        return { data: dedupeQuickFormData(sources.flatMap(item => item.data)), sources };
+    }
+
+    function parseMaybeJson(value) {
+        if (typeof value !== 'string') return value;
+        const trimmed = value.trim();
+        if (!trimmed || !/^[\[{]/.test(trimmed)) return value;
+        try { return JSON.parse(trimmed); } catch(e) { return value; }
+    }
+
+    function isImageUrl(value) {
+        if (typeof value !== 'string') return false;
+        return /^https?:\/\/.+\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(value) || /\/autoupload\/|\/uploads?\//i.test(value);
+    }
+
+    function collectImageCandidates(value, owner, bucket, depth = 0) {
+        if (depth > 5 || value === null || value === undefined) return;
+        const parsed = parseMaybeJson(value);
+        if (parsed !== value) return collectImageCandidates(parsed, owner, bucket, depth + 1);
+
+        if (typeof value === 'string') {
+            if (isImageUrl(value)) bucket.push({ author: owner, url: value });
+            return;
+        }
+
+        if (Array.isArray(value)) {
+            value.forEach(item => collectImageCandidates(item, owner, bucket, depth + 1));
+            return;
+        }
+
+        if (typeof value === 'object') {
+            const nextOwner = value.author || value.name || value.studentName || value.student_name || owner;
+            const directUrl = value.url || value.imageUrl || value.image_url || value.imgUrl || value.src || value.path || value.fileUrl || value.file_url;
+            if (directUrl) collectImageCandidates(directUrl, nextOwner, bucket, depth + 1);
+            Object.keys(value).forEach(key => {
+                if (/image|img|photo|picture|作品|图片|生图/i.test(key)) {
+                    collectImageCandidates(value[key], nextOwner, bucket, depth + 1);
+                }
+            });
+        }
+    }
+    
+    // 解析AI生图：永久81张图片 + QuickForm新增图片，总数为235 + 新增数量
+    function parseAIImages(quickFormData) {
+        const imageMap = new Map();
+        
+        // 先添加所有81张永久图片
+        for (const img of PERMANENT_AI_IMAGES) {
+            if (!imageMap.has(img[1])) {
+                imageMap.set(img[1], { author: img[0], url: img[1] });
+            }
+        }
+        
+        // 再从三路 QuickForm 添加新增图片（不覆盖已有的）
+        let newImagesCount = 0;
+        for (const item of quickFormData) {
+            const candidates = [];
+            collectImageCandidates(item, item.name || item.studentName || item.student_name || '未知', candidates);
+            for (const img of candidates) {
+                if (img.url && !imageMap.has(img.url)) {
+                    imageMap.set(img.url, { author: img.author || item.name || '未知', url: img.url });
+                    newImagesCount++;
+                }
+            }
+        }
+        
+        const images = Array.from(imageMap.values());
+        // 总数量 = 基准235张 + 新增图片数量
+        const totalCount = BASE_AI_IMAGE_COUNT + newImagesCount;
+        console.log(`AI生图统计: 基准 ${BASE_AI_IMAGE_COUNT} 张, 新增 ${newImagesCount} 张, 总计 ${totalCount} 张`);
+        return { images, totalCount };
+    }
+
+    function mergeUniqueRecords(...recordGroups) {
+        const map = new Map();
+        for (const record of recordGroups.flat()) {
+            if (!record || typeof record !== 'object') continue;
+            const key = record.id !== undefined && record.id !== null
+                ? `id:${record.id}`
+                : JSON.stringify(record);
+            if (!map.has(key)) map.set(key, record);
+        }
+        return Array.from(map.values());
+    }
+
+    function extractEmbeddedSupabaseData(quickFormData) {
+        const tables = { students: [], scores: [], notes: [], messages: [], message_likes: [] };
+        for (const item of quickFormData) {
+            if (item.record_type === 'csv_bundle_chunk' && item.table_name && item.rows_json) {
+                try {
+                    const rows = JSON.parse(item.rows_json);
+                    if (Array.isArray(rows) && tables[item.table_name]) tables[item.table_name].push(...rows);
+                } catch (error) {
+                    console.warn('历史表格分块解析失败:', item.table_name, error);
+                }
+            }
+            if (item.dataType === 'Supabase全量同步-学生数据' && item.studentsJson) {
+                try {
+                    const students = JSON.parse(item.studentsJson);
+                    if (Array.isArray(students)) tables.students.push(...students);
+                } catch (error) {
+                    console.warn('学生历史快照解析失败:', error);
+                }
+            }
+        }
+        Object.keys(tables).forEach(key => { tables[key] = mergeUniqueRecords(tables[key]); });
+        return tables;
+    }
+
+    function parseMessagesAndNotes(quickFormData, supabaseNotes, supabaseMessages, supabaseMessageLikes = []) {
+        const messageMap = new Map();
+        const noteMap = new Map();
+        const likeCounts = new Map();
+
+        const addMessage = message => {
+            if (!message?.content) return;
+            const id = String(message.id || `message_${quickFormFingerprint(message)}`);
+            const normalized = { ...message, id, likes: Number(message.likes) || 0 };
+            const existing = messageMap.get(id);
+            if (!existing) messageMap.set(id, normalized);
+            else messageMap.set(id, { ...existing, ...normalized, likes: Math.max(existing.likes || 0, normalized.likes || 0) });
+        };
+        const addNote = note => {
+            if (!note?.content) return;
+            const id = String(note.id || `note_${quickFormFingerprint(note)}`);
+            if (!noteMap.has(id)) noteMap.set(id, { ...note, id });
+        };
+
+        supabaseMessages.forEach(addMessage);
+        supabaseNotes.forEach(addNote);
+        for (const like of supabaseMessageLikes) {
+            const messageId = String(like.message_id || like.messageId || '');
+            if (messageId) likeCounts.set(messageId, (likeCounts.get(messageId) || 0) + 1);
+        }
+
+        for (const item of quickFormData) {
+            if (item.messageContent) {
+                addMessage({
+                    id: item.messageId,
+                    author: item.messageAuthor || item.studentName || item.name || '匿名',
+                    class_name: normalizeClass(item.messageAuthorClass || item.className || item.studentClass),
+                    content: item.messageContent,
+                    created_at: item.messageTime || item.timestamp || item.submitted_at,
+                    likes: item.messageLikes || item.likesCount || 0
+                });
+            }
+            if (item.commentContent) {
+                addMessage({
+                    id: item.commentId,
+                    author: item.studentName || item.name || '匿名',
+                    class_name: normalizeClass(item.className || item.studentClass),
+                    content: `评论：${item.commentContent}`,
+                    created_at: item.commentTime || item.timestamp || item.submitted_at,
+                    likes: 0,
+                    parent_message_id: item.messageId
+                });
+            }
+            if (item.messageId && item.likesCount !== undefined) {
+                const messageId = String(item.messageId);
+                likeCounts.set(messageId, Math.max(likeCounts.get(messageId) || 0, Number(item.likesCount) || 0));
+            }
+            if (/笔记/.test(item.dataType || '') && (item.noteContent || item.content)) {
+                addNote({
+                    id: item.noteId || item.id,
+                    student_name: item.studentName || item.name || item.author || '匿名',
+                    class_name: normalizeClass(item.className || item.studentClass),
+                    content: item.noteContent || item.content,
+                    created_at: item.noteTime || item.timestamp || item.submitted_at
+                });
+            }
+            if (item.messagesJson) {
+                try {
+                    const msgs = JSON.parse(item.messagesJson);
+                    if (Array.isArray(msgs)) msgs.forEach(msg => addMessage({
+                        id: msg.id,
+                        author: msg.author || '匿名',
+                        class_name: normalizeClass(msg.class || item.className),
+                        content: msg.content,
+                        created_at: msg.time,
+                        likes: msg.likes || 0
+                    }));
+                } catch (error) {
+                    console.warn('留言快照解析失败:', error);
+                }
+            }
+            if (item.notesJson) {
+                try {
+                    const notes = JSON.parse(item.notesJson);
+                    if (Array.isArray(notes)) notes.forEach(note => addNote({
+                        id: note.id,
+                        student_name: note.author || item.name || '匿名',
+                        class_name: normalizeClass(note.className || item.className),
+                        content: note.content,
+                        created_at: note.time
+                    }));
+                } catch (error) {
+                    console.warn('笔记快照解析失败:', error);
+                }
+            }
+        }
+
+        for (const [messageId, count] of likeCounts) {
+            const message = messageMap.get(messageId);
+            if (message) message.likes = Math.max(Number(message.likes) || 0, count);
+        }
+        const messages = Array.from(messageMap.values()).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+        const notes = Array.from(noteMap.values()).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+        const totalLikes = messages.reduce((sum, message) => sum + (Number(message.likes) || 0), 0);
+        return { messages, notes, totalLikes };
+    }
+    
+    function extractAbilitiesFromQuickForm(quickFormData, studentName) {
+        for (const item of quickFormData) {
+            if (item.name === studentName && item.abilitiesJson) {
+                try {
+                    const abilities = JSON.parse(item.abilitiesJson);
+                    if (abilities && typeof abilities === 'object') {
+                        return {
+                            "美术创作": parseInt(abilities.美术创作) || 70,
+                            "科学探究": parseInt(abilities.科学探究) || 70,
+                            "动手实践": parseInt(abilities.动手实践) || 70,
+                            "合作交流": parseInt(abilities.合作交流) || 70,
+                            "创新思维": parseInt(abilities.创新思维) || 70,
+                            "文化理解": parseInt(abilities.文化理解) || 70
+                        };
+                    }
+                } catch(e) {}
+            }
+        }
+        return null;
+    }
+    
+    function mergeStudents(supabaseStudents, scoresData, quickFormData) {
+        // 使用 Map 来去重，key 为 "姓名_班级" 的组合
+        const studentMap = new Map();
+        
+        // 处理 Supabase 学生数据
+        for (const s of supabaseStudents) {
+            if (!s.name || s.name === '1' || s.name === '测试同学') continue;
+            const className = normalizeClass(s.class_name);
+            const uniqueKey = `${s.name}_${className}`;
+            
+            let totalScore = fixLowTotalScore(parseInt(s.total_score) || 0);
+            let completedChapters = limitCompletedChapters(parseInt(s.completed_chapters) || 0);
+            
+            if (!studentMap.has(uniqueKey)) {
+                studentMap.set(uniqueKey, {
+                    id: s.id, name: s.name, className: className,
+                    sourceIds: [String(s.id)],
+                    totalScore: totalScore, completedChapters: completedChapters,
+                    totalTimeSeconds: parseInt(s.total_time) || 0,
+                    chapterScores: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+                    hasCertificate: totalScore >= 80, abilities: null
+                });
+            } else {
+                // 如果已存在，取更高的总分
+                const existing = studentMap.get(uniqueKey);
+                if (!existing.sourceIds.includes(String(s.id))) existing.sourceIds.push(String(s.id));
+                if (totalScore > existing.totalScore) existing.totalScore = totalScore;
+                if (completedChapters > existing.completedChapters) existing.completedChapters = completedChapters;
+                if (parseInt(s.total_time) > existing.totalTimeSeconds) existing.totalTimeSeconds = parseInt(s.total_time);
+            }
+        }
+        
+        // 处理 scores 表中的章节成绩
+        const studentBySourceId = new Map();
+        for (const student of studentMap.values()) {
+            for (const sourceId of student.sourceIds || [String(student.id)]) studentBySourceId.set(String(sourceId), student);
+        }
+        for (const score of scoresData) {
+            const student = studentBySourceId.get(String(score.student_id));
+            if (student && score.chapter_id >= 1 && score.chapter_id <= 6) {
+                    let val = limitChapterScore(parseInt(score.score) || 0);
+                    if (val > student.chapterScores[score.chapter_id]) {
+                        student.chapterScores[score.chapter_id] = val;
+                    }
+            }
+        }
+        
+        // 处理 QuickForm 增量数据
+        for (const item of quickFormData) {
+            const quickFormName = item.name || item.studentName;
+            if (quickFormName && item.totalScore !== undefined && item.totalScore !== null && item.totalScore !== '') {
+                const name = quickFormName;
+                const className = normalizeClass(item.className || item.studentClass);
+                const uniqueKey = `${name}_${className}`;
+                
+                let totalScore = fixLowTotalScore(parseInt(item.totalScore) || 0);
+                let completedChapters = limitCompletedChapters(parseInt(item.completedChapters) || 0);
+                const totalTimeSeconds = parseInt(item.totalTimeSeconds) || 0;
+                const chapterScores = {
+                    1: limitChapterScore(parseInt(item.chapter1Score) || 0),
+                    2: limitChapterScore(parseInt(item.chapter2Score) || 0),
+                    3: limitChapterScore(parseInt(item.chapter3Score) || 0),
+                    4: limitChapterScore(parseInt(item.chapter4Score) || 0),
+                    5: limitChapterScore(parseInt(item.chapter5Score) || 0),
+                    6: limitChapterScore(parseInt(item.chapter6Score) || 0)
+                };
+                
+                if (studentMap.has(uniqueKey)) {
+                    const existing = studentMap.get(uniqueKey);
+                    if (totalScore > existing.totalScore) existing.totalScore = totalScore;
+                    if (completedChapters > existing.completedChapters) existing.completedChapters = completedChapters;
+                    if (totalTimeSeconds > existing.totalTimeSeconds) existing.totalTimeSeconds = totalTimeSeconds;
+                    for (let i = 1; i <= 6; i++) {
+                        if (chapterScores[i] > existing.chapterScores[i]) {
+                            existing.chapterScores[i] = chapterScores[i];
+                        }
+                    }
+                    existing.hasCertificate = existing.totalScore >= 80;
+                } else {
+                    studentMap.set(uniqueKey, {
+                        id: `qf_${name}`, name: name, className: className,
+                        sourceIds: [`qf_${name}`],
+                        totalScore: totalScore, completedChapters: completedChapters,
+                        totalTimeSeconds: totalTimeSeconds, chapterScores: chapterScores,
+                        hasCertificate: totalScore >= 80, abilities: null
+                    });
+                }
+            }
+        }
+        
+        const students = Array.from(studentMap.values());
+        for (const s of students) {
+            const realAbilities = extractAbilitiesFromQuickForm(quickFormData, s.name);
+            if (realAbilities) {
+                s.abilities = realAbilities;
+            } else {
+                const t = s.totalScore;
+                s.abilities = {
+                    "美术创作": Math.min(100, Math.max(25, Math.floor(t * 0.85) + 5)),
+                    "科学探究": Math.min(100, Math.max(25, Math.floor(t * 0.9) + 3)),
+                    "动手实践": Math.min(100, Math.max(25, Math.floor(t * 0.75) + 10)),
+                    "合作交流": Math.min(100, Math.max(25, Math.floor(t * 0.95) + 2)),
+                    "创新思维": Math.min(100, Math.max(25, Math.floor(t * 0.8) + 8)),
+                    "文化理解": Math.min(100, Math.max(25, Math.floor(t * 0.82) + 7))
+                };
+            }
+        }
+        return students.sort((a, b) => b.totalScore - a.totalScore);
+    }
+    
+    function getFilteredStudents() {
+        if (currentClassFilter === 'all') return allStudents;
+        return allStudents.filter(s => s.className === currentClassFilter);
+    }
+    
+    function renderKPI() {
+        const filtered = getFilteredStudents();
+        const n = filtered.length;
+        const avgTotal = n ? filtered.reduce((a, b) => a + b.totalScore, 0) / n : 0;
+        const avgTime = n ? filtered.reduce((a, b) => a + b.totalTimeSeconds, 0) / n : 0;
+        const certCount = filtered.filter(s => s.hasCertificate).length;
+        
+        kpiGrid.innerHTML = `
+            <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-info"><h4>学生数</h4><div class="value">${n}</div></div></div>
+            <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-info"><h4>平均总分</h4><div class="value">${avgTotal.toFixed(1)}</div></div></div>
+            <div class="stat-card"><div class="stat-icon">⏱️</div><div class="stat-info"><h4>平均用时</h4><div class="value">${formatStudyTime(Math.floor(avgTime))}</div></div></div>
+            <div class="stat-card"><div class="stat-icon">🏅</div><div class="stat-info"><h4>证书总数</h4><div class="value">${certCount}</div></div></div>
+            <div class="stat-card"><div class="stat-icon">🎨</div><div class="stat-info"><h4>AI生图数</h4><div class="value">${allAIImages.totalCount}</div></div></div>
+            <div class="stat-card"><div class="stat-icon">💬</div><div class="stat-info"><h4>留言总数</h4><div class="value">${allMessages.length}</div></div></div>
+            <div class="stat-card"><div class="stat-icon">❤️</div><div class="stat-info"><h4>总点赞数</h4><div class="value">${allMessages.reduce((s,m)=>s+(m.likes||0),0)}</div></div></div>
+            <div class="stat-card"><div class="stat-icon">📓</div><div class="stat-info"><h4>笔记总数</h4><div class="value">${allNotes.length}</div></div></div>
+        `;
+    }
+    
+    function renderRankingTable() {
+        const filtered = getFilteredStudents();
+        let rankHtml = '';
+        filtered.forEach((s, idx) => {
+            rankHtml += `<tr><td class="rank-number">${idx + 1}</td><td class="name-link" onclick="showStudentModal('${escapeHtml(s.name)}', '${escapeHtml(s.className)}')">${escapeHtml(s.name)}</td><td>${escapeHtml(s.className)}</td><td><strong>${s.totalScore}</strong></td><td>${s.completedChapters}/6</td><td>${formatStudyTime(s.totalTimeSeconds)}</td</tr>`;
+        });
+        rankingTableBody.innerHTML = rankHtml || '<td><td colspan="6">暂无数据</td></tr>';
+    }
+    
+    function renderClassAvgCompare() {
+        const classMap = new Map();
+        allStudents.forEach(s => {
+            if (!classMap.has(s.className)) classMap.set(s.className, { total: 0, count: 0 });
+            const it = classMap.get(s.className);
+            it.total += s.totalScore;
+            it.count++;
+        });
+        let classHtml = '';
+        for (let cls of ['五年级1班','五年级2班','五年级3班','五年级4班','五年级5班','五年级6班','五年级7班','五年级8班','五年级9班']) {
+            const data = classMap.get(cls);
+            if (data) {
+                classHtml += `<div class="class-avg-item"><span>${escapeHtml(cls)}</span><span>${(data.total / data.count).toFixed(1)} 分</span></div>`;
+            } else {
+                classHtml += `<div class="class-avg-item"><span>${escapeHtml(cls)}</span><span>-- 分</span></div>`;
+            }
+        }
+        classAvgListDiv.innerHTML = classHtml;
+    }
+    
+    function renderCertificates() {
+        const filtered = getFilteredStudents();
+        const certList = filtered.filter(s => s.hasCertificate);
+        if (certList.length) {
+            let certHtml = '<div class="cert-grid">';
+            certList.forEach(s => certHtml += `<div class="cert-card"><div class="cert-name">${escapeHtml(s.name)}</div><div class="cert-class">${escapeHtml(s.className)}</div></div>`);
+            certHtml += '</div>';
+            certListDiv.innerHTML = certHtml;
+        } else {
+            certListDiv.innerHTML = '<div style="text-align:center; padding:40px;">✨ 暂无证书获得者</div>';
+        }
+    }
+    
+    function renderRadarChart() {
+        const filtered = getFilteredStudents();
+        if (filtered.length) {
+            const avg = { "美术创作": 0, "科学探究": 0, "动手实践": 0, "合作交流": 0, "创新思维": 0, "文化理解": 0 };
+            filtered.forEach(s => { Object.keys(avg).forEach(k => avg[k] += (s.abilities[k] || 70)); });
+            Object.keys(avg).forEach(k => avg[k] = +(avg[k] / filtered.length).toFixed(1));
+            if (radarChart) radarChart.dispose();
+            radarChart = echarts.init(document.getElementById('radarChart'));
+            radarChart.setOption({
+                radar: { indicator: Object.keys(avg).map(k => ({ name: k, max: 100 })), shape: 'circle', name: { textStyle: { color: '#b8e1ff' } } },
+                series: [{ type: 'radar', data: [{ value: Object.values(avg), name: '班级平均能力', areaStyle: { color: 'rgba(59,201,219,0.2)' }, lineStyle: { color: '#3bc9db' } }] }]
+            });
+        } else {
+            if (radarChart) radarChart.clear();
+        }
+    }
+    
+    function renderChapterDetail() {
+        const filtered = getFilteredStudents();
+        const sorted = filtered.map(s => ({ name: s.name, className: s.className, score: s.chapterScores[currentChapterId] || 0 })).sort((a, b) => b.score - a.score);
+        
+        let rankHtml = '';
+        sorted.forEach((item, idx) => {
+            rankHtml += `<tr><td class="rank-number">${idx + 1}</td><td class="name-link" onclick="showStudentModal('${escapeHtml(item.name)}', '${escapeHtml(item.className)}')">${escapeHtml(item.name)}</td><td>${escapeHtml(item.className)}</td><td><strong>${item.score}</strong></td></tr>`;
+        });
+        chapterRankTableBody.innerHTML = rankHtml || '<tr><td colspan="4">暂无数据</td></tr>';
+        
+        const names = sorted.map(s => s.name.length > 12 ? s.name.slice(0, 9) + '..' : s.name);
+        const scores = sorted.map(s => s.score);
+        currentBarChartData = { names, scores, chapterId: currentChapterId };
+        
+        if (chapterBarChart) chapterBarChart.dispose();
+        const chartDom = document.getElementById('chapterBarChart');
+        const chartHeight = Math.min(500, Math.max(300, sorted.length * 28));
+        chartDom.style.height = chartHeight + 'px';
+        chapterBarChart = echarts.init(chartDom);
+        chapterBarChart.setOption({
+            tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+            grid: { left: '14%', right: '5%', top: 15, bottom: 15, containLabel: true },
+            xAxis: { type: 'value', name: '分数', max: 20, axisLabel: { color: '#c4e0ff', fontSize: 10 } },
+            yAxis: { type: 'category', data: names, axisLabel: { color: '#c4e0ff', fontSize: 9, interval: 0 }, axisLine: { lineStyle: { color: '#3bc9db' } } },
+            dataZoom: [{ type: 'slider', yAxisIndex: 0, start: 0, end: 100, handleSize: 20 }],
+            series: [{ type: 'bar', data: scores, itemStyle: { borderRadius: [0, 6, 6, 0], color: '#2b90d9' }, label: { show: true, position: 'right', color: '#aaffff', fontSize: 9 } }]
+        });
+        chapterBarChart.off('click');
+        chapterBarChart.on('click', () => openBarModal());
+        document.getElementById('chapterChartTitle').innerHTML = `📊 第${currentChapterId}章：${chapterNames[currentChapterId - 1]} 得分分布（共${sorted.length}人）`;
+    }
+    
+    function renderGallery() {
+        galleryCountSpan.innerText = `${allAIImages.totalCount}张`;
+        if (!allAIImages.images || allAIImages.images.length === 0) {
+            aiGalleryDiv.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:40px;">🎨 暂无AI生图作品</div>';
+            return;
+        }
+        let html = '';
+        allAIImages.images.forEach(img => {
+            html += `<div class="gallery-item" onclick="openImageModal('${escapeHtml(img.url)}', '${escapeHtml(img.author)}')">
+                        <img src="${img.url}" loading="lazy" onerror="this.parentElement.style.display='none';">
+                        <div class="gallery-name">🎨 ${escapeHtml(img.author)}</div>
+                    </div>`;
+        });
+        aiGalleryDiv.innerHTML = html;
+    }
+    
+    function renderMessagesAndNotes() {
+        messageBoardDiv.innerHTML = allMessages.length ? allMessages.slice(0, 50).map(m => `
+            <div class="msg-item"><div><span class="msg-author">${escapeHtml(m.author || m.student_name || '匿名')}</span><span class="msg-time">${escapeHtml(m.created_at || '')}</span><span style="color:#7fc9ff; margin-left:8px;">[${escapeHtml(m.class_name || '未知')}]</span></div>
+            <div class="msg-content">💬 ${escapeHtml(m.content || '')}</div>
+            <div class="like-count">❤️ ${m.likes || 0} 点赞</div></div>
+        `).join('') : '<div style="text-align:center; padding:40px;">✨ 暂无留言</div>';
+        
+        notesListDiv.innerHTML = allNotes.length ? allNotes.slice(0, 30).map(n => `
+            <div class="msg-item"><div><span class="msg-author">📘 ${escapeHtml(n.student_name || n.author || '匿名')}</span><span class="msg-time">${escapeHtml(n.created_at || '')}</span><span style="color:#7fc9ff; margin-left:8px;">[${escapeHtml(n.class_name || '未知')}]</span></div>
+            <div class="msg-content">${escapeHtml(n.content || '').substring(0, 200)}${(n.content || '').length > 200 ? '...' : ''}</div></div>
+        `).join('') : '<div style="text-align:center; padding:40px;">📝 暂无笔记</div>';
+        
+        msgCountBadge.innerText = `${allMessages.length}条`;
+        noteCountBadge.innerText = `${allNotes.length}条`;
+        totalLikesBadge.innerHTML = `❤️ ${allMessages.reduce((s, m) => s + (m.likes || 0), 0)}`;
+    }
+
+    function averageList(values) {
+        const nums = values.map(v => Number(v)).filter(v => Number.isFinite(v));
+        return nums.length ? +(nums.reduce((sum, v) => sum + v, 0) / nums.length).toFixed(1) : 0;
+    }
+
+    function getWeakestItem(items) {
+        if (!items.length) return null;
+        return items.reduce((weakest, item) => item.average < weakest.average ? item : weakest, items[0]);
+    }
+
+    function buildLearningSnapshot() {
+        const filtered = getFilteredStudents();
+        const studentCount = filtered.length;
+        const classLabel = currentClassFilter === 'all' ? '全部班级' : currentClassFilter;
+        const chapterAverages = chapterNames.map((name, index) => {
+            const chapterId = index + 1;
+            const scores = filtered.map(s => (s.chapterScores && Number(s.chapterScores[chapterId])) || 0);
+            return {
+                id: chapterId,
+                name,
+                average: averageList(scores),
+                noScoreCount: filtered.filter(s => !s.chapterScores || !Number(s.chapterScores[chapterId])).length
+            };
+        });
+        const abilityAverages = abilityNames.map(name => ({
+            name,
+            average: averageList(filtered.map(s => (s.abilities && Number(s.abilities[name])) || 70))
+        }));
+        const focusStudents = filtered
+            .slice()
+            .sort((a, b) => (a.totalScore - b.totalScore) || (a.completedChapters - b.completedChapters))
+            .slice(0, 8)
+            .map(s => ({
+                name: s.name,
+                className: s.className,
+                totalScore: s.totalScore,
+                completedChapters: s.completedChapters,
+                weakestChapter: chapterNames.map((name, index) => ({
+                    name,
+                    score: (s.chapterScores && Number(s.chapterScores[index + 1])) || 0
+                })).sort((a, b) => a.score - b.score)[0]?.name || '--'
+            }));
+        const lowCompletionCount = filtered.filter(s => s.completedChapters < 4).length;
+        const lowScoreCount = filtered.filter(s => s.totalScore < 75).length;
+        const weakestChapter = getWeakestItem(chapterAverages);
+        const weakestAbility = getWeakestItem(abilityAverages);
+
+        return {
+            classLabel,
+            studentCount,
+            avgTotalScore: averageList(filtered.map(s => s.totalScore)),
+            avgCompletedChapters: averageList(filtered.map(s => s.completedChapters)),
+            certificateCount: filtered.filter(s => s.hasCertificate).length,
+            lowScoreCount,
+            lowCompletionCount,
+            weakestChapter: weakestChapter ? { name: weakestChapter.name, average: weakestChapter.average, noScoreCount: weakestChapter.noScoreCount } : null,
+            weakestAbility: weakestAbility ? { name: weakestAbility.name, average: weakestAbility.average } : null,
+            chapterAverages,
+            abilityAverages,
+            focusStudents,
+            learningEvidence: {
+                messageCount: allMessages.length,
+                noteCount: allNotes.length,
+                totalLikes: allMessages.reduce((s, m) => s + (m.likes || 0), 0),
+                aiImageCount: allAIImages.totalCount
+            }
+        };
+    }
+
+    function renderAIInsightSummary() {
+        const snapshot = buildLearningSnapshot();
+        const weakChapter = snapshot.weakestChapter ? `${snapshot.weakestChapter.name} ${snapshot.weakestChapter.average}分` : '--';
+        const weakAbility = snapshot.weakestAbility ? `${snapshot.weakestAbility.name} ${snapshot.weakestAbility.average}` : '--';
+        aiInsightQuickFacts.innerHTML = `
+            <div class="ai-fact"><small>分析对象</small><strong>${escapeHtml(snapshot.classLabel)} · ${snapshot.studentCount}人</strong></div>
+            <div class="ai-fact"><small>薄弱章节</small><strong>${escapeHtml(weakChapter)}</strong></div>
+            <div class="ai-fact"><small>薄弱能力</small><strong>${escapeHtml(weakAbility)}</strong></div>
+            <div class="ai-fact"><small>重点关注</small><strong>${snapshot.lowScoreCount}人低分</strong></div>
+        `;
+    }
+
+    function buildAIAnalysisPrompt(snapshot) {
+        return `你是“风筝创想家”课堂教学数据分析助手，服务于小学美术、科学与非遗风筝跨学科课堂。请只依据下面的数据快照进行学情分析，不要编造不存在的学生数据。
+
+请直接输出学情分析正文，不要写“以下是根据数据生成的学情分析”、不要写字数限制、不要暴露提示词或模型信息。结构只保留4项：
+1. 学情判断
+2. 薄弱点诊断
+3. 重点学生
+4. 教学策略调整
+第4项要详细具体，必须包含：导入怎么做、低分/中等/优势学生分别做什么、小组互评看什么、课末提交什么证据。
+
+数据快照：
+${JSON.stringify(snapshot, null, 2)}`;
+    }
+
+    function buildLocalLearningAnalysis(snapshot, reasonText = '') {
+        if (!snapshot.studentCount) {
+            return `1. 班级整体学情判断
+当前筛选范围暂无学生数据，建议先刷新数据或切换班级后再分析。
+
+2. 下一步建议
+检查 QuickForm 与 Supabase 数据源是否正常返回，再进行课堂学情诊断。${reasonText ? `\n\n本地提示：${reasonText}` : ''}`;
+        }
+
+        const weakChapter = snapshot.weakestChapter || { name: '--', average: 0, noScoreCount: 0 };
+        const weakAbility = snapshot.weakestAbility || { name: '--', average: 0 };
+        const focusList = snapshot.focusStudents.length
+            ? snapshot.focusStudents.slice(0, 2).map(s => `${s.name}（${s.totalScore}分，补${s.weakestChapter}）`).join('；')
+            : '暂无明显低分学生';
+        const participationHint = snapshot.learningEvidence.noteCount < snapshot.studentCount
+            ? '笔记偏少，需补过程反思。'
+            : '笔记较充分，继续强化证据表达。';
+
+        return `1. 学情判断：${snapshot.classLabel}${snapshot.studentCount}人，均分${snapshot.avgTotalScore}，完成${snapshot.avgCompletedChapters}/6章，低分${snapshot.lowScoreCount}人，证书${snapshot.certificateCount}份。
+2. 薄弱点诊断：章节弱项是“${weakChapter.name}”，均分${weakChapter.average}；能力弱项是“${weakAbility.name}”，均值${weakAbility.average}。${participationHint}
+3. 重点学生：${focusList}，优先安排同伴协助和教师巡视。
+4. 教学策略调整：导入环节用“${weakChapter.name}”错例和优秀例各1个，对照结构、受力、飞行表现找原因；低分学生使用步骤卡补关键结构，完成1次可见改进；中等学生做材料或角度微调，记录改前改后差异；优势学生担任讲解员，说明创意、结构依据和文化寓意；小组互评看稳定性、对称性、连接强度和说明清晰度；课末提交照片、修改说明和一句反思。`;
+    }
+
+    function buildStudentSnapshot(student) {
+        if (!student) return null;
+        const allRank = allStudents.slice().sort((a, b) => b.totalScore - a.totalScore).findIndex(s => s.name === student.name && s.className === student.className) + 1;
+        const classStudents = allStudents.filter(s => s.className === student.className);
+        const classRank = classStudents.slice().sort((a, b) => b.totalScore - a.totalScore).findIndex(s => s.name === student.name && s.className === student.className) + 1;
+        const chapters = chapterNames.map((name, index) => ({
+            id: index + 1,
+            name,
+            score: (student.chapterScores && Number(student.chapterScores[index + 1])) || 0
+        }));
+        const abilities = abilityNames.map(name => ({
+            name,
+            score: (student.abilities && Number(student.abilities[name])) || 70
+        }));
+        const weakestChapter = chapters.slice().sort((a, b) => a.score - b.score)[0];
+        const weakestAbility = abilities.slice().sort((a, b) => a.score - b.score)[0];
+        const studentMessages = allMessages.filter(m => [m.author, m.student_name, m.name].some(v => v === student.name));
+        const studentNotes = allNotes.filter(n => [n.student_name, n.author, n.name].some(v => v === student.name));
+        const studentImages = (allAIImages.images || []).filter(img => img.author === student.name);
+
+        return {
+            name: student.name,
+            className: student.className,
+            totalScore: student.totalScore,
+            completedChapters: student.completedChapters,
+            totalTime: formatStudyTime(student.totalTimeSeconds),
+            hasCertificate: student.hasCertificate,
+            allRank,
+            classRank,
+            classSize: classStudents.length,
+            weakestChapter,
+            weakestAbility,
+            chapters,
+            abilities,
+            evidence: {
+                messages: studentMessages.length,
+                notes: studentNotes.length,
+                aiImages: studentImages.length
+            }
+        };
+    }
+
+    function buildStudentAIAnalysisPrompt(snapshot) {
+        return `你是“风筝创想家”课堂个人学情诊断助手。请只依据下面这名学生的数据进行分析，不要编造数据。
+
+请输出中文，控制在180字以内，只给4项：
+1. 当前画像
+2. 精准薄弱点
+3. 个别化建议
+4. 下次课提醒
+每项必须引用分数、章节、能力或作品/笔记证据。
+
+学生数据：
+${JSON.stringify(snapshot, null, 2)}`;
+    }
+
+    function buildLocalStudentAnalysis(snapshot, reasonText = '') {
+        if (!snapshot) return '1. 当前画像\n暂无学生数据。';
+        const chapter = snapshot.weakestChapter || { name: '--', score: 0 };
+        const ability = snapshot.weakestAbility || { name: '--', score: 0 };
+        const evidence = `留言${snapshot.evidence.messages}条、笔记${snapshot.evidence.notes}条、AI作品${snapshot.evidence.aiImages}张`;
+        const levelHint = snapshot.totalScore < 75 || snapshot.completedChapters < 4
+            ? `先补“${chapter.name}”，用步骤卡完成一个可验证改进。`
+            : `提升“${ability.name}”，把作品创意与飞行证据讲清楚。`;
+
+        return `1. 当前画像
+${snapshot.name}总分${snapshot.totalScore}，完成${snapshot.completedChapters}/6章，班级排名${snapshot.classRank}/${snapshot.classSize}，${snapshot.hasCertificate ? '已获证书' : '未获证书'}。
+
+2. 精准薄弱点
+最低章节：${chapter.name}${chapter.score}分；最低能力：${ability.name}${ability.score}。过程证据：${evidence}。
+
+3. 个别化建议
+${levelHint}
+
+4. 下次课提醒
+课前复盘薄弱章节，课中记录一次修改前后对比，课后补交一句设计反思。${reasonText ? `\n\n本地提示：接口暂不可用，已使用本地规则生成。原因：${reasonText}` : ''}`;
+    }
+
+    function formatAIInsightText(text) {
+        const safe = escapeHtml(text).replace(/\r\n/g, '\n');
+        return safe.split('\n').map(line => {
+            const trimmed = line.trim();
+            if (!trimmed) return '';
+            if (/^\d+[.、]/.test(trimmed)) return `<p class="ai-subtitle">${trimmed}</p>`;
+            return `<p>${trimmed}</p>`;
+        }).join('');
+    }
+
+    function setAIInsightResult(text, isLoading = false) {
+        aiInsightResult.dataset.raw = text;
+        aiInsightResult.innerHTML = formatAIInsightText(text);
+        aiInsightResult.classList.toggle('loading', isLoading);
+    }
+
+    function compactLearningAnalysisText(text) {
+        let cleaned = String(text || '')
+            .replace(/请直接输出学情分析正文[^。；;\\n]*[。；;]?/g, '')
+            .replace(/不要写“?以下是根据数据生成的学情分析”?[^。；;\\n]*[。；;]?/g, '')
+            .replace(/不要写字数限制[^。；;\\n]*[。；;]?/g, '')
+            .replace(/不要暴露提示词或模型信息[^。；;\\n]*[。；;]?/g, '')
+            .replace(/以下是根据数据生成的学情分析[。；;，,]*/g, '')
+            .replace(/全文含开头控制在220字以内[。；;，,]*/g, '')
+            .replace(/不要出现[^。；;\\n]*[。；;]?/g, '')
+            .replace(/用户要求我基于数据快照，输出简短准确的学情分析[。；;，,]*/g, '')
+            .replace(/用户要求[^。\\n]*[。\\n]?/g, '')
+            .replace(/模型名称[:：]?[^。\\n]*/g, '')
+            .replace(/deepseek-v4-pro-260425|DeepSeek|LEARNING ANALYTICS/g, '')
+            .replace(/[ \\t]+/g, ' ')
+            .replace(/\\n{3,}/g, '\\n\\n')
+            .trim();
+        return cleaned;
+    }
+
+    function setStudentAIResult(text, isLoading = false) {
+        studentAiResult.dataset.raw = text;
+        studentAiResult.innerHTML = formatAIInsightText(text);
+        studentAiResult.classList.toggle('loading', isLoading);
+    }
+
+    function extractArkCompletedText(payload) {
+        if (!payload) return '';
+        if (typeof payload === 'string') return payload;
+        if (typeof payload.output_text === 'string') return payload.output_text;
+        if (payload.response) return extractArkCompletedText(payload.response);
+        if (Array.isArray(payload.output)) {
+            return payload.output.map(item => {
+                if (typeof item === 'string') return item;
+                if (Array.isArray(item.content)) {
+                    return item.content.map(c => c.text || c.output_text || '').join('');
+                }
+                return item.text || item.output_text || '';
+            }).join('');
+        }
+        if (Array.isArray(payload.content)) {
+            return payload.content.map(c => c.text || c.output_text || '').join('');
+        }
+        return '';
+    }
+
+    function extractArkTextDelta(eventData) {
+        if (!eventData || typeof eventData !== 'object') return '';
+        if (typeof eventData.delta === 'string') return eventData.delta;
+        if (eventData.type && eventData.type.includes('output_text') && typeof eventData.text === 'string') return eventData.text;
+        if (eventData.choices && eventData.choices[0]?.delta?.content) return eventData.choices[0].delta.content;
+        if (eventData.choices && eventData.choices[0]?.text) return eventData.choices[0].text;
+        return '';
+    }
+
+    async function readArkStream(response, onProgress) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+        let finalText = '';
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const rawLine of lines) {
+                const line = rawLine.trim();
+                if (!line.startsWith('data:')) continue;
+                const payload = line.slice(5).trim();
+                if (!payload || payload === '[DONE]') continue;
+                try {
+                    const eventData = JSON.parse(payload);
+                    const delta = extractArkTextDelta(eventData);
+                    if (delta) {
+                        finalText += delta;
+                        onProgress(finalText);
+                    } else if (eventData.type === 'response.completed') {
+                        const completedText = extractArkCompletedText(eventData);
+                        if (completedText && !finalText) {
+                            finalText = completedText;
+                            onProgress(finalText);
+                        }
+                    }
+                } catch (err) {
+                    console.warn('AI stream parse skipped:', err);
+                }
+            }
+        }
+
+        return finalText;
+    }
+
+    async function callArkAIAnalysis(promptText, onProgress) {
+        const response = await fetch(ARK_RESPONSES_API, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${ARK_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: AI_ANALYSIS_MODEL,
+                stream: true,
+                tools: [{ type: 'web_search', max_keyword: 3 }],
+                input: [{
+                    role: 'user',
+                    content: [{ type: 'input_text', text: promptText }]
+                }]
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            throw new Error(`接口返回 ${response.status}${errorText ? `：${errorText.slice(0, 180)}` : ''}`);
+        }
+
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.body || !contentType.includes('text/event-stream')) {
+            const raw = await response.text();
+            try {
+                const parsed = JSON.parse(raw);
+                return extractArkCompletedText(parsed) || raw;
+            } catch (err) {
+                return raw;
+            }
+        }
+
+        const streamedText = await readArkStream(response, onProgress);
+        if (!streamedText.trim()) throw new Error('未收到模型输出');
+        return streamedText;
+    }
+
+    async function runAIInsightAnalysis() {
+        const snapshot = buildLearningSnapshot();
+        aiAnalyzeBtn.disabled = true;
+        aiCopyBtn.disabled = true;
+        aiInsightStatus.innerText = '正在分析当前学情...';
+        setAIInsightResult('正在读取当前数据大屏中的成绩、能力、作品和互动记录，请稍候...', true);
+
+        try {
+            const promptText = buildAIAnalysisPrompt(snapshot);
+            const aiText = await callArkAIAnalysis(promptText, partialText => setAIInsightResult(compactLearningAnalysisText(partialText), true));
+            setAIInsightResult(compactLearningAnalysisText(aiText), false);
+            aiInsightStatus.innerText = '学情分析已生成';
+        } catch (err) {
+            const localText = buildLocalLearningAnalysis(snapshot, err.message || '网络或跨域请求失败');
+            setAIInsightResult(compactLearningAnalysisText(localText), false);
+            aiInsightStatus.innerText = '接口暂不可用，已生成本地规则分析';
+            console.warn('AI analysis fallback:', err);
+        } finally {
+            aiAnalyzeBtn.disabled = false;
+            aiCopyBtn.disabled = false;
+        }
+    }
+
+    async function runStudentAIAnalysis() {
+        if (!currentStudentForAI) return;
+        const snapshot = buildStudentSnapshot(currentStudentForAI);
+        studentAiAnalyzeBtn.disabled = true;
+        studentAiStatus.innerText = '正在生成个人精准分析...';
+        setStudentAIResult('正在读取该学生成绩、能力、作品和互动证据...', true);
+
+        try {
+            const promptText = buildStudentAIAnalysisPrompt(snapshot);
+            const aiText = await callArkAIAnalysis(promptText, partialText => setStudentAIResult(partialText, true));
+            setStudentAIResult(aiText, false);
+            studentAiStatus.innerText = '个人精准分析已生成';
+        } catch (err) {
+            const localText = buildLocalStudentAnalysis(snapshot, err.message || '网络或跨域请求失败');
+            setStudentAIResult(localText, false);
+            studentAiStatus.innerText = '接口暂不可用，已生成本地个人分析';
+            console.warn('Student AI analysis fallback:', err);
+        } finally {
+            studentAiAnalyzeBtn.disabled = false;
+        }
+    }
+
+    function copyAIInsight() {
+        const text = aiInsightResult.dataset.raw || aiInsightResult.innerText || '';
+        if (!text.trim()) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+                aiInsightStatus.innerText = '分析内容已复制';
+            }).catch(() => {
+                aiInsightStatus.innerText = '浏览器限制复制，请手动选择文本复制';
+            });
+        } else {
+            aiInsightStatus.innerText = '当前浏览器不支持自动复制，请手动选择文本复制';
+        }
+    }
+
+    function initAIInsightAnimation() {
+        const container = document.getElementById('aiLearningLottie');
+        if (!container || !window.lottie) return;
+        try {
+            window.lottie.loadAnimation({
+                container,
+                renderer: 'svg',
+                loop: true,
+                autoplay: true,
+                path: AI_LEARNING_LOTTIE_URL
+            });
+        } catch (err) {
+            console.warn('AI animation failed:', err);
+        }
+    }
+    
+    function renderAll() {
+        renderKPI();
+        renderAIInsightSummary();
+        renderRankingTable();
+        renderClassAvgCompare();
+        renderCertificates();
+        renderRadarChart();
+        renderChapterDetail();
+        renderMessagesAndNotes();
+        currentFilterBadge.innerHTML = currentClassFilter === 'all' ? '全部班级' : `当前班级: ${currentClassFilter}`;
+    }
+
+    function applyFetchedData(supabaseStudents, supabaseScores, supabaseNotes, supabaseMessages, quickFormData) {
+        const embedded = extractEmbeddedSupabaseData(quickFormData);
+        const students = mergeUniqueRecords(supabaseStudents, embedded.students);
+        const scores = mergeUniqueRecords(supabaseScores, embedded.scores);
+        const notesSource = mergeUniqueRecords(supabaseNotes, embedded.notes);
+        const messagesSource = mergeUniqueRecords(supabaseMessages, embedded.messages);
+
+        allStudents = mergeStudents(students, scores, quickFormData);
+        allAIImages = parseAIImages(quickFormData);
+        const parsedCommunity = parseMessagesAndNotes(quickFormData, notesSource, messagesSource, embedded.message_likes);
+        allMessages = parsedCommunity.messages;
+        allNotes = parsedCommunity.notes;
+
+        const classes = ['五年级1班', '五年级2班', '五年级3班', '五年级4班', '五年级5班', '五年级6班', '五年级7班', '五年级8班', '五年级9班'];
+        classFilterSelect.innerHTML = '<option value="all">🌐 全部班级</option>' + classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        classFilterSelect.value = classes.includes(currentClassFilter) ? currentClassFilter : 'all';
+        if (classFilterSelect.value === 'all') currentClassFilter = 'all';
+        renderGallery();
+        renderAll();
+    }
+    
+    async function fetchAndRender() {
+        const hint = document.getElementById('progressHint');
+        hint.classList.add('show');
+        hint.innerText = '⚡ 正在读取本地缓存...';
+
+        const onlineRefresh = Promise.allSettled([
+            fetchStudentsFromSupabase(),
+            fetchScoresFromSupabase(),
+            fetchNotesFromSupabase(),
+            fetchMessagesFromSupabase(),
+            fetchQuickFormData()
+        ]);
+
+        try {
+            const fastData = await loadFastQuickFormData();
+            if (fastData.data.length) {
+                applyFetchedData([], [], [], [], fastData.data);
+                hint.innerText = `⚡ 已从${fastData.source}显示，正在后台更新...`;
+            } else {
+                hint.innerText = '🔄 首次加载，正在获取完整数据...';
+            }
+
+            const settled = await onlineRefresh;
+            const valueOrEmpty = index => settled[index].status === 'fulfilled' ? settled[index].value : [];
+            const supabaseStudents = valueOrEmpty(0);
+            const supabaseScores = valueOrEmpty(1);
+            const supabaseNotes = valueOrEmpty(2);
+            const supabaseMessages = valueOrEmpty(3);
+            const quickFormResult = settled[4].status === 'fulfilled'
+                ? settled[4].value
+                : { data: fastData.data, sources: [] };
+
+            applyFetchedData(supabaseStudents, supabaseScores, supabaseNotes, supabaseMessages, quickFormResult.data);
+            const onlineCount = quickFormResult.sources.filter(source => source.ok).length;
+            const fallbackCount = quickFormResult.sources.filter(source => !source.ok && source.data.length).length;
+            const unavailableCount = quickFormResult.sources.filter(source => !source.data.length).length;
+            const supabaseFailures = settled.slice(0, 4).filter(result => result.status === 'rejected').length;
+            const sourceStatus = `QuickForm在线${onlineCount}路、备份${fallbackCount}路、不可用${unavailableCount}路` +
+                (supabaseFailures ? `，Supabase失败${supabaseFailures}路（已用历史备份）` : '');
+            hint.innerText = `✅ ${allStudents.length}名学生，${allMessages.length}条互动，${allNotes.length}条笔记；${sourceStatus}`;
+        } catch (error) {
+            console.error(error);
+            hint.innerText = `⚠️ 数据更新失败，已保留现有内容：${error.message}`;
+        }
+        setTimeout(() => hint.classList.remove('show'), 5000);
+    }
+    
+    function applyFilter() { currentClassFilter = classFilterSelect.value; renderAll(); }
+    
+    window.openImageModal = (url, author) => { document.getElementById('modalImage').src = url; document.getElementById('modalImageTitle').innerHTML = `<strong>${escapeHtml(author)}</strong> 的作品`; document.getElementById('imageModal').classList.add('open'); };
+    window.closeImageModal = () => document.getElementById('imageModal').classList.remove('open');
+    window.closeBarModal = () => { document.getElementById('barModal').classList.remove('open'); if (fullChartModal) fullChartModal.dispose(); };
+    window.closeStudentModal = () => { currentStudentForAI = null; document.getElementById('studentModal').classList.remove('open'); if (studentRadar) studentRadar.dispose(); };
+    
+    window.showStudentModal = (name, className) => {
+        const student = allStudents.find(s => s.name === name && s.className === className);
+        if (!student) return;
+        currentStudentForAI = student;
+        document.getElementById('modalStudentName').innerHTML = `${escapeHtml(student.name)} · ${escapeHtml(student.className)}`;
+        document.getElementById('modalStudentInfo').innerHTML = `<div>🏆 总分: ${student.totalScore} 分 | 📚 完成章节: ${student.completedChapters}/6 | ⏱️ 用时: ${formatStudyTime(student.totalTimeSeconds)} | ${student.hasCertificate ? '🏅 已获证书' : '📄 未获证书'}</div>`;
+        setStudentAIResult(buildLocalStudentAnalysis(buildStudentSnapshot(student)), false);
+        studentAiStatus.innerText = '已生成基础诊断，可点击按钮调用模型精修';
+        const vals = [student.abilities["美术创作"], student.abilities["科学探究"], student.abilities["动手实践"], student.abilities["合作交流"], student.abilities["创新思维"], student.abilities["文化理解"]];
+        if (studentRadar) studentRadar.dispose();
+        studentRadar = echarts.init(document.getElementById('studentRadarContainer'));
+        studentRadar.setOption({
+            title: { text: `${student.name}的个人能力画像`, left: 'center', textStyle: { color: '#eef5ff', fontSize: 16, fontWeight: 'bold' } },
+            radar: { indicator: [{ name: "美术创作", max: 100 }, { name: "科学探究", max: 100 }, { name: "动手实践", max: 100 }, { name: "合作交流", max: 100 }, { name: "创新思维", max: 100 }, { name: "文化理解", max: 100 }], shape: 'circle', name: { textStyle: { color: '#b8e1ff', fontSize: 12 } }, center: ['50%', '50%'], radius: '65%' },
+            series: [{ type: 'radar', data: [{ value: vals, name: '能力值' }], areaStyle: { color: 'rgba(59,201,219,0.3)' }, lineStyle: { color: '#3bc9db', width: 2 }, itemStyle: { color: '#aaffff' } }]
+        });
+        document.getElementById('studentModal').classList.add('open');
+    };
+    
+    function openBarModal() {
+        if (!currentBarChartData.names.length) return;
+        document.getElementById('modalBarTitle').innerHTML = `📊 第${currentBarChartData.chapterId}章：${chapterNames[currentBarChartData.chapterId - 1]} 得分分布`;
+        document.getElementById('barModal').classList.add('open');
+        setTimeout(() => {
+            if (fullChartModal) fullChartModal.dispose();
+            fullChartModal = echarts.init(document.getElementById('fullBarChart'));
+            fullChartModal.setOption({
+                tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+                grid: { left: '14%', right: '5%', containLabel: true },
+                xAxis: { type: 'value', name: '分数', max: 20 },
+                yAxis: { type: 'category', data: currentBarChartData.names },
+                dataZoom: [{ type: 'slider', yAxisIndex: 0, start: 0, end: 100 }],
+                series: [{ type: 'bar', data: currentBarChartData.scores, itemStyle: { borderRadius: [0, 6, 6, 0], color: '#3ba0ff' }, label: { show: true, position: 'right', color: '#aaffff' } }]
+            });
+        }, 50);
+    }
+    
+    classFilterSelect.addEventListener('change', applyFilter);
+    chapterSelect.addEventListener('change', (e) => { currentChapterId = parseInt(e.target.value); renderChapterDetail(); });
+    refreshBtn.addEventListener('click', fetchAndRender);
+    aiAnalyzeBtn.addEventListener('click', runAIInsightAnalysis);
+    aiCopyBtn.addEventListener('click', copyAIInsight);
+    studentAiAnalyzeBtn.addEventListener('click', runStudentAIAnalysis);
+    document.getElementById('zoomHintBtn').addEventListener('click', openBarModal);
+    window.addEventListener('resize', () => { if (radarChart) radarChart?.resize(); if (chapterBarChart) chapterBarChart?.resize(); if (fullChartModal) fullChartModal?.resize(); });
+    
+    initAIInsightAnimation();
+    fetchAndRender();
+</script>
+</body>
+</html>

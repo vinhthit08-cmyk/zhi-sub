@@ -1,0 +1,76 @@
+name: 更新数据并部署单页
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'site/index.html'
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  update-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 读取仓库
+        uses: actions/checkout@v4
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 检查数据更新配置
+        id: data_config
+        env:
+          QUICKFORM_APIS: ${{ secrets.QUICKFORM_APIS }}
+          PUBLIC_DATA_SALT: ${{ secrets.PUBLIC_DATA_SALT }}
+        run: |
+          if [ -n "$QUICKFORM_APIS" ] && [ -n "$PUBLIC_DATA_SALT" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "尚未配置数据密钥，本次先发布现有完整页面。"
+          fi
+
+      - name: 获取新数据并重建单页
+        if: steps.data_config.outputs.enabled == 'true'
+        env:
+          QUICKFORM_APIS: ${{ secrets.QUICKFORM_APIS }}
+          PUBLIC_DATA_SALT: ${{ secrets.PUBLIC_DATA_SALT }}
+        run: node scripts/update-page.mjs
+
+      - name: 保存最新数据快照
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site/index.html
+          if ! git diff --cached --quiet; then
+            git commit -m "data: update public dashboard snapshot"
+            git push
+          fi
+
+      - name: 配置 GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: 上传单页产物
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+      - name: 发布 GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
