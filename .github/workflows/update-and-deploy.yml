@@ -6,7 +6,7 @@ on:
     paths-ignore:
       - 'site/index.html'
   schedule:
-    - cron: '7,22,37,52 * * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 permissions:

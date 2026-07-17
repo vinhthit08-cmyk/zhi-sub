@@ -10,6 +10,171 @@
         (_, index) => factory(index)
     );
 
+    const LIVE_QUICKFORM_API = 'https://quickform.cn/api/hrisktqeyo/all';
+    const LIVE_POLL_INTERVAL_MS = 30 * 1000;
+    let lastLiveSignature = '';
+    let livePollInFlight = false;
+
+    const parseLiveJson = value => {
+        if (typeof value !== 'string') return value;
+        const text = value.trim();
+        if (!text || !/^[\[{]/.test(text)) return value;
+        try { return JSON.parse(text); } catch { return value; }
+    };
+
+    const liveContentSignature = text => {
+        let hash = 2166136261;
+        for (let index = 0; index < text.length; index++) {
+            hash ^= text.charCodeAt(index);
+            hash = Math.imul(hash, 16777619);
+        }
+        return (hash >>> 0).toString(16);
+    };
+
+    const readLiveCompletedCount = row => {
+        const parsed = parseLiveJson(row.completed_chapters ?? row.completedChapters);
+        if (Array.isArray(parsed)) {
+            return new Set(parsed.map(Number).filter(id => id >= 1 && id <= 6)).size;
+        }
+        return Math.max(0, Math.min(6, Number(parsed) || 0));
+    };
+
+    const readLiveChapterScores = row => {
+        const packed = parseLiveJson(row.chapter_scores ?? row.chapterScores);
+        const currentChapter = Number(row.currentChapter ?? row.current_chapter) || 0;
+        return Object.fromEntries(Array.from({ length: 6 }, (_, index) => {
+            const id = index + 1;
+            const raw = row[`chapter${id}Score`]
+                ?? (packed && typeof packed === 'object' && !Array.isArray(packed) ? packed[id] ?? packed[String(id)] : undefined)
+                ?? (currentChapter === id ? row.chapterScore : undefined);
+            return [id, Math.max(0, Math.min(20, Number(raw) || 0))];
+        }));
+    };
+
+    const refreshClassOptions = () => {
+        const selected = currentClassFilter;
+        const classes = Array.from(new Set(allStudents.map(student => student.className).filter(Boolean)))
+            .sort((a, b) => a.localeCompare(b, 'zh-CN'));
+        classFilterSelect.innerHTML = '<option value="all">🌐 全部班级</option>'
+            + classes.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+        currentClassFilter = classes.includes(selected) ? selected : 'all';
+        classFilterSelect.value = currentClassFilter;
+    };
+
+    const mergeLiveRows = rows => {
+        let changed = false;
+        const studentMap = new Map(allStudents.map(student => [`${student.name}\u0000${student.className}`, student]));
+
+        for (const row of rows) {
+            const name = String(row.name || row.studentName || '').trim();
+            if (!name || row.totalScore === undefined || row.totalScore === null || row.totalScore === '') continue;
+            const className = normalizeClass(row.class_name || row.className || row.studentClass);
+            const key = `${name}\u0000${className}`;
+            const totalScore = Math.max(0, Number(row.total_score ?? row.totalScore) || 0);
+            const completedChapters = readLiveCompletedCount(row);
+            const totalTimeSeconds = Math.max(0, Number(row.total_time ?? row.totalTimeSeconds ?? row.totalTime) || 0);
+            const chapterScores = readLiveChapterScores(row);
+            let student = studentMap.get(key);
+
+            if (!student) {
+                student = {
+                    id: `live_${name}_${className}`,
+                    name,
+                    className,
+                    totalScore,
+                    completedChapters,
+                    totalTimeSeconds,
+                    chapterScores,
+                    abilities: Object.fromEntries(abilityNames.map(ability => [ability, totalScore])),
+                    hasCertificate: totalScore >= 80
+                };
+                allStudents.push(student);
+                studentMap.set(key, student);
+                changed = true;
+                continue;
+            }
+
+            const previous = `${student.totalScore}|${student.completedChapters}|${student.totalTimeSeconds}|${JSON.stringify(student.chapterScores)}`;
+            student.totalScore = Math.max(Number(student.totalScore) || 0, totalScore);
+            student.completedChapters = Math.max(Number(student.completedChapters) || 0, completedChapters);
+            student.totalTimeSeconds = Math.max(Number(student.totalTimeSeconds) || 0, totalTimeSeconds);
+            for (let id = 1; id <= 6; id++) {
+                student.chapterScores[id] = Math.max(Number(student.chapterScores[id]) || 0, chapterScores[id]);
+            }
+            student.hasCertificate = student.totalScore >= 80;
+            const next = `${student.totalScore}|${student.completedChapters}|${student.totalTimeSeconds}|${JSON.stringify(student.chapterScores)}`;
+            if (next !== previous) changed = true;
+        }
+
+        const communityBefore = JSON.stringify([allMessages, allNotes]);
+        const community = parseMessagesAndNotes(rows, allNotes, allMessages, []);
+        allMessages = community.messages;
+        allNotes = community.notes;
+        if (JSON.stringify([allMessages, allNotes]) !== communityBefore) changed = true;
+
+        const imageMap = new Map((allAIImages.images || []).map(image => [image.url, image]));
+        let addedImages = 0;
+        for (const row of rows) {
+            const candidates = [];
+            collectImageCandidates(row, row.name || row.studentName || row.student_name || '未知', candidates);
+            for (const image of candidates) {
+                if (!image.url || imageMap.has(image.url)) continue;
+                imageMap.set(image.url, image);
+                addedImages++;
+            }
+        }
+        if (addedImages) {
+            allAIImages.images = Array.from(imageMap.values());
+            allAIImages.totalCount += addedImages;
+            changed = true;
+        }
+
+        if (!changed) return false;
+        allStudents.sort((a, b) => b.totalScore - a.totalScore || a.name.localeCompare(b.name, 'zh-CN'));
+        refreshClassOptions();
+        renderGallery();
+        renderAll();
+        return true;
+    };
+
+    const pollLiveQuickForm = async () => {
+        if (livePollInFlight || document.hidden) return;
+        livePollInFlight = true;
+        try {
+            const response = await fetch(`${LIVE_QUICKFORM_API}?_=${Date.now()}`, {
+                cache: 'no-store',
+                headers: { accept: 'application/json' }
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const text = await response.text();
+            const payload = JSON.parse(text);
+            if (payload?.error) throw new Error(payload.message || payload.error);
+            const rows = Array.isArray(payload) ? payload : (payload.submissions || payload.data || payload.records || []);
+            if (!Array.isArray(rows)) throw new Error('接口没有返回记录数组');
+            const signature = `${rows.length}:${liveContentSignature(text)}`;
+            if (signature === lastLiveSignature) return;
+            lastLiveSignature = signature;
+            if (!mergeLiveRows(rows)) return;
+            const hint = document.getElementById('progressHint');
+            if (hint) {
+                hint.classList.add('show');
+                hint.innerText = `✅ 发现新数据，已实时更新；当前 ${allStudents.length} 名学生`;
+                setTimeout(() => hint.classList.remove('show'), 3500);
+            }
+            console.info('[dashboard] live data merged ' + JSON.stringify({
+                records: rows.length,
+                students: allStudents.length,
+                messages: allMessages.length,
+                notes: allNotes.length,
+                images: allAIImages.images.length
+            }));
+        } catch (error) {
+            console.warn('[dashboard] live check failed; snapshot retained:', error);
+        } finally {
+            livePollInFlight = false;
+        }
+    };
+
     window.loadEmbeddedSnapshot = () => {
         const snapshot = readSnapshot();
         const summary = snapshot.summary || {};
@@ -60,5 +225,9 @@
     };
 
     window.loadEmbeddedSnapshot();
-    window.setInterval(() => window.location.reload(), 5 * 60 * 1000);
+    pollLiveQuickForm();
+    window.setInterval(pollLiveQuickForm, LIVE_POLL_INTERVAL_MS);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) pollLiveQuickForm();
+    });
 })();
