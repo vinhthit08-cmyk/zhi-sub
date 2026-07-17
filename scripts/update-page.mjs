@@ -6,7 +6,11 @@ import { buildPublicSnapshot, mergeRecords } from './data-pipeline.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SITE_FILE = path.join(ROOT, 'site', 'index.html');
 const SOURCE_DIR = path.join(ROOT, 'src');
-const QUICKFORM_APIS = String(process.env.QUICKFORM_APIS || '').split(',').map(value => value.trim()).filter(Boolean);
+const FALLBACK_QUICKFORM_API = 'https://quickform.cn/api/hrisktqeyo/all';
+const QUICKFORM_APIS = Array.from(new Set([
+  ...String(process.env.QUICKFORM_APIS || '').split(',').map(value => value.trim()).filter(Boolean),
+  FALLBACK_QUICKFORM_API
+]));
 const PUBLIC_DATA_SALT = process.env.PUBLIC_DATA_SALT || 'local-build-only-change-this-in-github-secrets';
 const SEED_DATA_DIR = process.env.SEED_DATA_DIR ? path.resolve(process.env.SEED_DATA_DIR) : '';
 

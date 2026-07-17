@@ -108,6 +108,27 @@ function readAbilities(row, totalScore) {
   return Object.fromEntries(ABILITY_NAMES.map(name => [name, Math.max(0, Math.min(100, asNumber(direct[name], totalScore)))]));
 }
 
+function readCompletedChapterCount(row) {
+  const value = row.completed_chapters ?? row.completedChapters;
+  const parsed = parseJson(value);
+  if (Array.isArray(parsed)) {
+    return new Set(parsed.map(asNumber).filter(id => id >= 1 && id <= 6)).size;
+  }
+  return Math.max(0, Math.min(6, asNumber(parsed, 0)));
+}
+
+function readChapterScores(row) {
+  const packed = parseJson(row.chapter_scores ?? row.chapterScores);
+  const currentChapter = asNumber(row.currentChapter ?? row.current_chapter, 0);
+  return Object.fromEntries(Array.from({ length: 6 }, (_, index) => {
+    const id = index + 1;
+    const value = row[`chapter${id}Score`]
+      ?? (packed && typeof packed === 'object' && !Array.isArray(packed) ? packed[id] ?? packed[String(id)] : undefined)
+      ?? (currentChapter === id ? row.chapterScore : undefined);
+    return [id, Math.max(0, Math.min(20, asNumber(value, 0)))];
+  }));
+}
+
 function pseudonym(name, className, salt) {
   const digest = crypto.createHmac('sha256', salt).update(`${className}\u0000${name}`).digest('hex').slice(0, 6).toUpperCase();
   return `学员-${digest}`;
@@ -143,12 +164,9 @@ export function buildPublicSnapshot({ quickformRows = [], supabaseTables = {}, s
     const className = normalizeClass(raw.class_name || raw.className || raw.studentClass);
     const key = `${name}\u0000${className}`;
     const totalScore = asNumber(raw.total_score ?? raw.totalScore, 0);
-    const completedChapters = Math.max(0, Math.min(6, asNumber(raw.completed_chapters ?? raw.completedChapters, 0)));
-    const totalTimeSeconds = Math.max(0, asNumber(raw.total_time ?? raw.totalTimeSeconds, 0));
-    const chapterScores = Object.fromEntries(Array.from({ length: 6 }, (_, index) => {
-      const id = index + 1;
-      return [id, Math.max(0, Math.min(20, asNumber(raw[`chapter${id}Score`], 0)))];
-    }));
+    const completedChapters = readCompletedChapterCount(raw);
+    const totalTimeSeconds = Math.max(0, asNumber(raw.total_time ?? raw.totalTimeSeconds ?? raw.totalTime, 0));
+    const chapterScores = readChapterScores(raw);
     const abilities = readAbilities(raw, totalScore);
     const current = studentMap.get(key) || {
       name, className, totalScore: 0, completedChapters: 0, totalTimeSeconds: 0,
