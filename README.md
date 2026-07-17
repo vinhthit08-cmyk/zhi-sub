@@ -1,5 +1,7 @@
 # GitHub Pages 单网页自动更新版
 
+当前部署仓库：`vinhthit08-cmyk/zhi-sub`。
+
 最终部署产物只有 `site/index.html` 一个网页文件。GitHub Actions 每15分钟获取一次数据，合并上一版匿名快照，然后重新发布到 GitHub Pages。访客打开页面后每5分钟自动刷新，以看到 Actions 最近生成的数据。
 
 ## 第一次发布
