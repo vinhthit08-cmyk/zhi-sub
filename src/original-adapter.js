@@ -44,6 +44,12 @@
 
         renderGallery();
         renderAll();
+        console.info('[dashboard] snapshot rendered ' + JSON.stringify({
+            students: allStudents.length,
+            messages: allMessages.length,
+            notes: allNotes.length,
+            images: allAIImages.images.length
+        }));
 
         const hint = document.getElementById('progressHint');
         if (hint) {

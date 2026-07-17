@@ -161,15 +161,20 @@ async function buildSinglePage(snapshot) {
     .replace(/const SUPABASE_ANON_KEY = '[^']*';/, "const SUPABASE_ANON_KEY = '';")
     .replace(/const QUICKFORM_API = '[^']*';/, "const QUICKFORM_API = '';")
     .replace(/const QUICKFORM_NEW_API = '[^']*';/, "const QUICKFORM_NEW_API = '';")
-    .replace(/const QUICKFORM_APIS = \[[\s\S]*?\n    \];/, 'const QUICKFORM_APIS = [];')
+    .replace(/const QUICKFORM_APIS = \[[^\]]*\];/, 'const QUICKFORM_APIS = [];')
     .replace(/const ARK_API_KEY = '[^']*';/, "const ARK_API_KEY = '';")
     .replace(/const PERMANENT_AI_IMAGES = \[[\s\S]*?(?=    let supabaseClient)/, 'const PERMANENT_AI_IMAGES = [];\n    \n')
     .replace("refreshBtn.addEventListener('click', fetchAndRender);", "refreshBtn.addEventListener('click', () => window.location.reload());")
-    .replace(/\n    fetchAndRender\(\);\n<\/script>/, '\n</script>');
-  html = html.replace(
-    '</body>',
-    `<script id="initialData" type="application/json">${safeJson}</script>\n<script>${adapter}</script>\n</body>`
-  );
+    .replace(/^\s*fetchAndRender\(\);\s*$/m, '');
+  // Put the snapshot before the dashboard's main script, then run the adapter
+  // inside that same script. The original page uses top-level `let` bindings;
+  // keeping initialization in one script avoids cross-script TDZ failures.
+  const mainScriptStart = html.lastIndexOf('<script>');
+  const mainScriptEnd = html.indexOf('</script>', mainScriptStart);
+  if (mainScriptStart < 0 || mainScriptEnd < 0) throw new Error('找不到原页面主程序');
+  html = `${html.slice(0, mainScriptStart)}`
+    + `<script id="initialData" type="application/json">${safeJson}</script>\n`
+    + `${html.slice(mainScriptStart, mainScriptEnd)}\n${adapter}\n${html.slice(mainScriptEnd)}`;
   await fs.mkdir(path.dirname(SITE_FILE), { recursive: true });
   await fs.writeFile(SITE_FILE, html, 'utf8');
 }
