@@ -1,0 +1,18 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "kite-learning-ai-proxy",
+  "main": "src/index.js",
+  "compatibility_date": "2026-07-18",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "ALLOWED_ORIGIN": "https://vinhthit08-cmyk.github.io",
+    "ARK_MODEL": "deepseek-v4-pro-260425"
+  },
+  "secrets": {
+    "required": ["ARK_API_KEY"]
+  }
+}

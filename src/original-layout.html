@@ -346,6 +346,7 @@
     }
     const ARK_RESPONSES_API = 'https://ark.cn-beijing.volces.com/api/v3/responses';
     const ARK_API_KEY = '';
+    const AI_PROXY_API = 'https://kite-learning-ai-proxy.vinhthit08-cmyk.workers.dev/api/analyze';
     const AI_ANALYSIS_MODEL = 'deepseek-v4-pro-260425';
     const AI_LEARNING_LOTTIE_URL = 'https://img.tofaka.com/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260530/Clwl/fe807c20-1183-11ee-a7e0-738836ffd98a.json';
     const BASE_AI_IMAGE_COUNT = 235;  // AI生图基准235张
@@ -1434,7 +1435,7 @@ ${levelHint}
 
     function extractArkTextDelta(eventData) {
         if (!eventData || typeof eventData !== 'object') return '';
-        if (typeof eventData.delta === 'string') return eventData.delta;
+        if (eventData.type === 'response.output_text.delta' && typeof eventData.delta === 'string') return eventData.delta;
         if (eventData.type && eventData.type.includes('output_text') && typeof eventData.text === 'string') return eventData.text;
         if (eventData.choices && eventData.choices[0]?.delta?.content) return eventData.choices[0].delta.content;
         if (eventData.choices && eventData.choices[0]?.text) return eventData.choices[0].text;
@@ -1482,21 +1483,12 @@ ${levelHint}
     }
 
     async function callArkAIAnalysis(promptText, onProgress) {
-        const response = await fetch(ARK_RESPONSES_API, {
+        const response = await fetch(AI_PROXY_API, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${ARK_API_KEY}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                model: AI_ANALYSIS_MODEL,
-                stream: true,
-                tools: [{ type: 'web_search', max_keyword: 3 }],
-                input: [{
-                    role: 'user',
-                    content: [{ type: 'input_text', text: promptText }]
-                }]
-            })
+            body: JSON.stringify({ prompt: promptText })
         });
 
         if (!response.ok) {
