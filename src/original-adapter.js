@@ -201,7 +201,10 @@
                 students: allStudents.length,
                 messages: allMessages.length,
                 notes: allNotes.length,
-                images: allAIImages.images.length
+                images: allAIImages.images.length,
+                renderedMessages: messageBoardDiv.querySelectorAll('.msg-item').length,
+                renderedNotes: notesListDiv.querySelectorAll('.msg-item').length,
+                renderedImages: aiGalleryDiv.querySelectorAll('.gallery-item').length
             }));
         } catch (error) {
             console.warn('[dashboard] live check failed; snapshot retained:', error);

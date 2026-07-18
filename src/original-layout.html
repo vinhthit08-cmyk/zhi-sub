@@ -1157,13 +1157,13 @@
     }
     
     function renderMessagesAndNotes() {
-        messageBoardDiv.innerHTML = allMessages.length ? allMessages.slice(0, 50).map(m => `
+        messageBoardDiv.innerHTML = allMessages.length ? allMessages.map(m => `
             <div class="msg-item"><div><span class="msg-author">${escapeHtml(m.author || m.student_name || '匿名')}</span><span class="msg-time">${escapeHtml(m.created_at || '')}</span><span style="color:#7fc9ff; margin-left:8px;">[${escapeHtml(m.class_name || '未知')}]</span></div>
             <div class="msg-content">💬 ${escapeHtml(m.content || '')}</div>
             <div class="like-count">❤️ ${m.likes || 0} 点赞</div></div>
         `).join('') : '<div style="text-align:center; padding:40px;">✨ 暂无留言</div>';
         
-        notesListDiv.innerHTML = allNotes.length ? allNotes.slice(0, 30).map(n => `
+        notesListDiv.innerHTML = allNotes.length ? allNotes.map(n => `
             <div class="msg-item"><div><span class="msg-author">📘 ${escapeHtml(n.student_name || n.author || '匿名')}</span><span class="msg-time">${escapeHtml(n.created_at || '')}</span><span style="color:#7fc9ff; margin-left:8px;">[${escapeHtml(n.class_name || '未知')}]</span></div>
             <div class="msg-content">${escapeHtml(n.content || '').substring(0, 200)}${(n.content || '').length > 200 ? '...' : ''}</div></div>
         `).join('') : '<div style="text-align:center; padding:40px;">📝 暂无笔记</div>';
