@@ -1148,9 +1148,10 @@
         }
         let html = '';
         allAIImages.images.forEach(img => {
-            html += `<div class="gallery-item" onclick="openImageModal('${escapeHtml(img.url)}', '${escapeHtml(img.author)}')">
+            const authorLabel = `${img.author || '未知姓名'} · ${img.className || '班级未匹配'}`;
+            html += `<div class="gallery-item" onclick="openImageModal('${escapeHtml(img.url)}', '${escapeHtml(authorLabel)}')">
                         <img src="${img.url}" loading="lazy" onerror="this.parentElement.style.display='none';">
-                        <div class="gallery-name">🎨 ${escapeHtml(img.author)}</div>
+                        <div class="gallery-name">🎨 ${escapeHtml(authorLabel)}</div>
                     </div>`;
         });
         aiGalleryDiv.innerHTML = html;

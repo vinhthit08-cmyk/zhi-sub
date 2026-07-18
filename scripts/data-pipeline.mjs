@@ -134,21 +134,39 @@ function pseudonym(name, className, salt) {
   return `学员-${digest}`;
 }
 
-function collectImageUrls(value, bucket, owner = '未知', depth = 0) {
+function imageSourceKey(url) {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return String(url || '');
+  }
+}
+
+function collectImageUrls(value, bucket, owner = '未知', ownerClass = '', createdAt = '', depth = 0) {
   if (depth > 4 || value === null || value === undefined) return;
   const parsed = parseJson(value);
-  if (parsed !== value) return collectImageUrls(parsed, bucket, owner, depth + 1);
+  if (parsed !== value) return collectImageUrls(parsed, bucket, owner, ownerClass, createdAt, depth + 1);
   if (typeof value === 'string') {
     if (/^https?:\/\//i.test(value) && (/\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(value) || /upload|image|img/i.test(value))) {
-      bucket.set(value, { author: String(owner || '未知'), url: value });
+      const sourceKey = imageSourceKey(value);
+      bucket.set(sourceKey, {
+        author: String(owner || '未知'),
+        className: ownerClass ? normalizeClass(ownerClass) : '',
+        url: value,
+        sourceKey,
+        time: String(createdAt || '')
+      });
     }
     return;
   }
-  if (Array.isArray(value)) return value.forEach(item => collectImageUrls(item, bucket, owner, depth + 1));
+  if (Array.isArray(value)) return value.forEach(item => collectImageUrls(item, bucket, owner, ownerClass, createdAt, depth + 1));
   if (typeof value === 'object') {
     const nextOwner = value.author || value.name || value.studentName || value.student_name || owner;
+    const nextClass = value.class_name || value.className || value.studentClass || ownerClass;
+    const nextTime = value.time || value.created_at || value.timestamp || value.latestAIImageTime || createdAt;
     for (const [key, nested] of Object.entries(value)) {
-      if (/image|img|photo|picture|作品|图片|生图/i.test(key)) collectImageUrls(nested, bucket, nextOwner, depth + 1);
+      if (/image|img|photo|picture|作品|图片|生图/i.test(key)) collectImageUrls(nested, bucket, nextOwner, nextClass, nextTime, depth + 1);
     }
   }
 }
@@ -256,7 +274,9 @@ export function buildPublicSnapshot({ quickformRows = [], supabaseTables = {}, s
   completeRows.forEach(row => collectImageUrls(
     row,
     dynamicImageMap,
-    row.author || row.name || row.studentName || row.student_name
+    row.author || row.name || row.studentName || row.student_name,
+    row.class_name || row.className || row.studentClass,
+    row.latestAIImageTime || row.timestamp || row.submitted_at || row.created_at
   ));
   const dynamicImages = Array.from(dynamicImageMap.values());
   const students = Array.from(studentMap.values()).map(student => ({

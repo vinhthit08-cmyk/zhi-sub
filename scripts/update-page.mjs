@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { buildPublicSnapshot, mergeRecords } from './data-pipeline.mjs';
 
@@ -124,9 +125,11 @@ function mergeSnapshots(previous, current, hadSuccessfulFetch) {
   const notes = mergeDetails(previous.notes, current.notes);
   const previousDynamicImages = Array.isArray(previous.dynamicImages) ? previous.dynamicImages : [];
   const currentDynamicImages = Array.isArray(current.dynamicImages) ? current.dynamicImages : [];
-  const dynamicImageMap = new Map(previousDynamicImages.map(item => [String(item.url), item]));
+  const dynamicImageMap = new Map(previousDynamicImages.map(item => [String(item.sourceKey || item.url), item]));
   for (const item of currentDynamicImages) {
-    if (item?.url) dynamicImageMap.set(String(item.url), { ...(dynamicImageMap.get(String(item.url)) || {}), ...item });
+    if (!item?.url) continue;
+    const key = String(item.sourceKey || item.url);
+    dynamicImageMap.set(key, { ...(dynamicImageMap.get(key) || {}), ...item });
   }
   const dynamicImages = Array.from(dynamicImageMap.values());
   const addedDynamicImages = Math.max(0, dynamicImages.length - previousDynamicImages.length);
@@ -161,6 +164,50 @@ function mergeSnapshots(previous, current, hadSuccessfulFetch) {
   };
 }
 
+async function cacheDynamicImages(snapshot) {
+  const items = Array.isArray(snapshot.dynamicImages) ? snapshot.dynamicImages : [];
+  if (!items.length) return snapshot;
+  const imageDir = path.join(ROOT, 'site', 'ai-images');
+  await fs.mkdir(imageDir, { recursive: true });
+  const cachedItems = [];
+  for (const item of items) {
+    if (!item?.url) continue;
+    if (/^(\.\/)?ai-images\//.test(item.url)) {
+      cachedItems.push(item);
+      continue;
+    }
+    const sourceKey = String(item.sourceKey || item.url);
+    let extension = '.jpg';
+    try {
+      const parsed = new URL(item.url);
+      const candidate = path.extname(parsed.pathname).toLowerCase();
+      if (/^\.(png|jpe?g|gif|webp)$/.test(candidate)) extension = candidate === '.jpeg' ? '.jpg' : candidate;
+    } catch {}
+    const fileName = `${crypto.createHash('sha256').update(sourceKey).digest('hex').slice(0, 24)}${extension}`;
+    const filePath = path.join(imageDir, fileName);
+    try {
+      await fs.access(filePath);
+    } catch {
+      try {
+        const response = await fetch(item.url, { headers: { accept: 'image/*' } });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const contentType = String(response.headers.get('content-type') || '');
+        if (!contentType.startsWith('image/')) throw new Error(`非图片响应：${contentType || 'unknown'}`);
+        const bytes = Buffer.from(await response.arrayBuffer());
+        if (!bytes.length || bytes.length > 12 * 1024 * 1024) throw new Error(`图片大小异常：${bytes.length}`);
+        await fs.writeFile(filePath, bytes);
+      } catch (error) {
+        console.warn(`暂时无法缓存AI图片：${sourceKey}（${error.message}）`);
+        cachedItems.push(item);
+        continue;
+      }
+    }
+    cachedItems.push({ ...item, sourceKey, url: `./ai-images/${fileName}` });
+  }
+  cachedItems.sort((a, b) => String(b.time || '').localeCompare(String(a.time || ''), 'zh-CN'));
+  return { ...snapshot, dynamicImages: cachedItems };
+}
+
 async function buildSinglePage(snapshot) {
   const [original, adapter] = await Promise.all([
     fs.readFile(path.join(SOURCE_DIR, 'original-layout.html'), 'utf8'),
@@ -168,14 +215,16 @@ async function buildSinglePage(snapshot) {
   ]);
   const permanentMatch = original.match(/const PERMANENT_AI_IMAGES = (\[[\s\S]*?\]);\s*let supabaseClient/);
   const permanentImages = permanentMatch ? JSON.parse(permanentMatch[1]) : [];
-  const anonymousAuthors = new Map();
+  const studentClassByName = new Map((snapshot.students || []).map(student => [String(student.name), String(student.className || '')]));
   const galleryImages = permanentImages.map(([author, url]) => {
-    if (!anonymousAuthors.has(author)) anonymousAuthors.set(author, `创作者-${String(anonymousAuthors.size + 1).padStart(2, '0')}`);
-    return { author: anonymousAuthors.get(author), url };
+    return { author, className: studentClassByName.get(String(author)) || '班级未匹配', url };
   });
-  const galleryMap = new Map(galleryImages.map(item => [String(item.url), item]));
-  for (const item of snapshot.dynamicImages || []) {
-    if (item?.url) galleryMap.set(String(item.url), item);
+  const galleryMap = new Map();
+  for (const item of [...(snapshot.dynamicImages || [])].sort((a, b) => String(b.time || '').localeCompare(String(a.time || ''), 'zh-CN'))) {
+    if (item?.url) galleryMap.set(String(item.sourceKey || item.url), item);
+  }
+  for (const item of galleryImages) {
+    if (item?.url && !galleryMap.has(String(item.url))) galleryMap.set(String(item.url), item);
   }
   const pageSnapshot = { ...snapshot, images: Array.from(galleryMap.values()) };
   const safeJson = JSON.stringify(pageSnapshot).replaceAll('<', '\\u003c').replaceAll('&', '\\u0026');
@@ -211,6 +260,6 @@ const rows = mergeRecords([], sources.flatMap(source => source.rows));
 const current = rows.length
   ? buildPublicSnapshot({ quickformRows: rows, supabaseTables: {}, sourceStatus: sources, salt: PUBLIC_DATA_SALT })
   : previous;
-const merged = mergeSnapshots(previous, current, sources.some(source => source.ok && source.mode === 'online'));
+const merged = await cacheDynamicImages(mergeSnapshots(previous, current, sources.some(source => source.ok && source.mode === 'online')));
 await buildSinglePage(merged);
 console.log(JSON.stringify({ generatedAt: merged.generatedAt, students: merged.summary.studentCount, sources: merged.sources }, null, 2));

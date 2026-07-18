@@ -34,6 +34,15 @@
         return (hash >>> 0).toString(16);
     };
 
+    const liveImageSourceKey = value => {
+        try {
+            const parsed = new URL(value, window.location.href);
+            return `${parsed.origin}${parsed.pathname}`;
+        } catch {
+            return String(value || '');
+        }
+    };
+
     const readLiveCompletedCount = row => {
         const parsed = parseLiveJson(row.completed_chapters ?? row.completedChapters);
         if (Array.isArray(parsed)) {
@@ -126,19 +135,36 @@
         allNotes = community.notes;
         if (JSON.stringify([allMessages, allNotes]) !== communityBefore) changed = true;
 
-        const imageMap = new Map((allAIImages.images || []).map(image => [image.url, image]));
+        const imageMap = new Map((allAIImages.images || []).map(image => [
+            String(image.sourceKey || liveImageSourceKey(image.url)),
+            image
+        ]));
         let addedImages = 0;
         for (const row of rows) {
             const candidates = [];
             collectImageCandidates(row, row.name || row.studentName || row.student_name || '未知', candidates);
             for (const image of candidates) {
-                if (!image.url || imageMap.has(image.url)) continue;
-                imageMap.set(image.url, image);
+                if (!image.url) continue;
+                const sourceKey = liveImageSourceKey(image.url);
+                if (imageMap.has(sourceKey)) continue;
+                imageMap.set(sourceKey, {
+                    ...image,
+                    sourceKey,
+                    className: (row.class_name || row.className || row.studentClass)
+                        ? normalizeClass(row.class_name || row.className || row.studentClass)
+                        : '班级未匹配',
+                    time: row.latestAIImageTime || row.timestamp || row.submitted_at || row.created_at || ''
+                });
                 addedImages++;
             }
         }
         if (addedImages) {
-            allAIImages.images = Array.from(imageMap.values());
+            allAIImages.images = Array.from(imageMap.values()).sort((a, b) => {
+                const aTime = String(a.time || '');
+                const bTime = String(b.time || '');
+                if (aTime || bTime) return bTime.localeCompare(aTime, 'zh-CN');
+                return 0;
+            });
             allAIImages.totalCount += addedImages;
             changed = true;
         }
