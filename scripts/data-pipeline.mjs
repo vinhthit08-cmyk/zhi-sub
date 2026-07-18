@@ -218,12 +218,63 @@ export function buildPublicSnapshot({ quickformRows = [], supabaseTables = {}, s
   const messages = new Map(tables.messages.map(item => [String(item.id), { ...item, likes: asNumber(item.likes) }]));
   const notes = new Map(tables.notes.map(item => [String(item.id), item]));
   const likeCounts = new Map();
+  const embeddedDetailId = (prefix, item, parent) => {
+    const explicit = item?.id || item?.noteId || item?.messageId;
+    if (explicit !== undefined && explicit !== null && explicit !== '') return String(explicit);
+    const payload = JSON.stringify({
+      content: item?.content || item?.noteContent || item?.messageContent || '',
+      author: item?.author || item?.student_name || item?.studentName || item?.name || '',
+      className: item?.class_name || item?.className || item?.class || item?.studentClass || '',
+      time: item?.created_at || item?.time || item?.noteTime || item?.messageTime || item?.timestamp || '',
+      parent: parent?.id || parent?.submission_id || parent?.timestamp || parent?.submitted_at || ''
+    });
+    return `${prefix}:${crypto.createHash('sha256').update(payload).digest('hex').slice(0, 24)}`;
+  };
+  const addEmbeddedMessage = (message, parent) => {
+    if (!message || typeof message !== 'object') return;
+    const content = message.content || message.messageContent;
+    if (!content) return;
+    const id = embeddedDetailId('message', message, parent);
+    const old = messages.get(id) || {};
+    messages.set(id, {
+      ...old,
+      ...parent,
+      ...message,
+      id,
+      messageContent: content,
+      messageAuthor: message.author || message.messageAuthor || message.student_name || message.studentName || parent?.name,
+      messageAuthorClass: message.class_name || message.className || message.class || message.messageAuthorClass || parent?.className || parent?.studentClass,
+      messageTime: message.created_at || message.time || message.messageTime || message.timestamp || parent?.timestamp || parent?.submitted_at,
+      likes: Math.max(asNumber(old.likes), asNumber(message.likes), asNumber(message.likesCount))
+    });
+  };
+  const addEmbeddedNote = (note, parent) => {
+    if (!note || typeof note !== 'object') return;
+    const content = note.content || note.noteContent;
+    if (!content) return;
+    const id = embeddedDetailId('note', note, parent);
+    const old = notes.get(id) || {};
+    notes.set(id, {
+      ...old,
+      ...parent,
+      ...note,
+      id,
+      noteContent: content,
+      studentName: note.student_name || note.studentName || note.author || note.name || parent?.name || parent?.studentName,
+      className: note.class_name || note.className || note.class || note.studentClass || parent?.className || parent?.studentClass,
+      noteTime: note.created_at || note.time || note.noteTime || note.timestamp || parent?.timestamp || parent?.submitted_at
+    });
+  };
   for (const like of tables.message_likes) {
     const messageId = String(like.message_id || like.messageId || '');
     if (messageId) likeCounts.set(messageId, (likeCounts.get(messageId) || 0) + 1);
   }
   for (const row of completeRows) {
     const recordKind = `${row.dataType || ''} ${row.eventType || ''} ${row.record_type || ''}`;
+    const embeddedMessages = parseJson(row.messagesJson);
+    if (Array.isArray(embeddedMessages)) embeddedMessages.forEach(message => addEmbeddedMessage(message, row));
+    const embeddedNotes = parseJson(row.notesJson);
+    if (Array.isArray(embeddedNotes)) embeddedNotes.forEach(note => addEmbeddedNote(note, row));
     if (row.messageContent) {
       const id = String(row.messageId || recordKey(row));
       const old = messages.get(id) || {};
