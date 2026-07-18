@@ -2,6 +2,7 @@ const ARK_API_URL = 'https://ark.cn-beijing.volces.com/api/v3/responses';
 const DEFAULT_MODEL = 'deepseek-v4-pro-260425';
 const DEFAULT_ALLOWED_ORIGIN = 'https://vinhthit08-cmyk.github.io';
 const MAX_PROMPT_LENGTH = 40_000;
+const DEFAULT_MAX_OUTPUT_TOKENS = 1200;
 
 function corsHeaders(origin, env) {
   const allowedOrigin = env.ALLOWED_ORIGIN || DEFAULT_ALLOWED_ORIGIN;
@@ -64,6 +65,10 @@ export default {
     if (!prompt || prompt.length > MAX_PROMPT_LENGTH) {
       return jsonResponse({ error: 'invalid_prompt' }, 400, origin, env);
     }
+    const requestedMaxOutput = Number(payload?.maxOutputTokens || 0);
+    const maxOutputTokens = Number.isFinite(requestedMaxOutput) && requestedMaxOutput > 0
+      ? Math.min(Math.max(Math.trunc(requestedMaxOutput), 300), 1800)
+      : Number(env.ARK_MAX_OUTPUT_TOKENS || DEFAULT_MAX_OUTPUT_TOKENS);
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 90_000);
@@ -79,7 +84,7 @@ export default {
         body: JSON.stringify({
           model: env.ARK_MODEL || DEFAULT_MODEL,
           stream: true,
-          tools: [{ type: 'web_search', max_keyword: 3 }],
+          max_output_tokens: maxOutputTokens,
           input: [{
             role: 'user',
             content: [{ type: 'input_text', text: prompt }]

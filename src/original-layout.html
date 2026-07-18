@@ -1482,13 +1482,16 @@ ${levelHint}
         return finalText;
     }
 
-    async function callArkAIAnalysis(promptText, onProgress) {
+    async function callArkAIAnalysis(promptText, onProgress, options = {}) {
         const response = await fetch(AI_PROXY_API, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ prompt: promptText })
+            body: JSON.stringify({
+                prompt: promptText,
+                maxOutputTokens: options.maxOutputTokens || 1200
+            })
         });
 
         if (!response.ok) {
@@ -1517,11 +1520,11 @@ ${levelHint}
         aiAnalyzeBtn.disabled = true;
         aiCopyBtn.disabled = true;
         aiInsightStatus.innerText = '正在分析当前学情...';
-        setAIInsightResult('正在读取当前数据大屏中的成绩、能力、作品和互动记录，请稍候...', true);
+        setAIInsightResult(compactLearningAnalysisText(buildLocalLearningAnalysis(snapshot)), true);
 
         try {
             const promptText = buildAIAnalysisPrompt(snapshot);
-            const aiText = await callArkAIAnalysis(promptText, partialText => setAIInsightResult(compactLearningAnalysisText(partialText), true));
+            const aiText = await callArkAIAnalysis(promptText, partialText => setAIInsightResult(compactLearningAnalysisText(partialText), true), { maxOutputTokens: 1000 });
             setAIInsightResult(compactLearningAnalysisText(aiText), false);
             aiInsightStatus.innerText = '学情分析已生成';
         } catch (err) {
@@ -1540,11 +1543,11 @@ ${levelHint}
         const snapshot = buildStudentSnapshot(currentStudentForAI);
         studentAiAnalyzeBtn.disabled = true;
         studentAiStatus.innerText = '正在生成个人精准分析...';
-        setStudentAIResult('正在读取该学生成绩、能力、作品和互动证据...', true);
+        setStudentAIResult(buildLocalStudentAnalysis(snapshot), true);
 
         try {
             const promptText = buildStudentAIAnalysisPrompt(snapshot);
-            const aiText = await callArkAIAnalysis(promptText, partialText => setStudentAIResult(partialText, true));
+            const aiText = await callArkAIAnalysis(promptText, partialText => setStudentAIResult(partialText, true), { maxOutputTokens: 650 });
             setStudentAIResult(aiText, false);
             studentAiStatus.innerText = '个人精准分析已生成';
         } catch (err) {
