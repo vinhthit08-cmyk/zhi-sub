@@ -10,7 +10,10 @@
         (_, index) => factory(index)
     );
 
-    const LIVE_QUICKFORM_API = 'https://quickform.cn/api/hrisktqeyo/all';
+    const LIVE_QUICKFORM_APIS = [
+        'https://quickform.cn/api/hrisktqeyo/all',
+        'https://quickform.cn/api/ot5fx3ctmo/all'
+    ];
     const LIVE_POLL_INTERVAL_MS = 30 * 1000;
     let lastLiveSignature = '';
     let livePollInFlight = false;
@@ -106,8 +109,19 @@
             if (next !== previous) changed = true;
         }
 
+        const communityRows = rows.map(row => {
+            const kind = `${row.dataType || ''} ${row.eventType || ''} ${row.record_type || ''}`;
+            let normalized = row;
+            if (/message|留言/i.test(kind) && !row.messageContent && row.content) {
+                normalized = { ...normalized, messageContent: row.content };
+            }
+            if (/note|笔记/i.test(kind) && !row.noteContent && row.content) {
+                normalized = { ...normalized, noteContent: row.content, dataType: `${row.dataType || ''} 笔记` };
+            }
+            return normalized;
+        });
         const communityBefore = JSON.stringify([allMessages, allNotes]);
-        const community = parseMessagesAndNotes(rows, allNotes, allMessages, []);
+        const community = parseMessagesAndNotes(communityRows, allNotes, allMessages, []);
         allMessages = community.messages;
         allNotes = community.notes;
         if (JSON.stringify([allMessages, allNotes]) !== communityBefore) changed = true;
@@ -141,17 +155,38 @@
         if (livePollInFlight || document.hidden) return;
         livePollInFlight = true;
         try {
-            const response = await fetch(`${LIVE_QUICKFORM_API}?_=${Date.now()}`, {
-                cache: 'no-store',
-                headers: { accept: 'application/json' }
-            });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const text = await response.text();
-            const payload = JSON.parse(text);
-            if (payload?.error) throw new Error(payload.message || payload.error);
-            const rows = Array.isArray(payload) ? payload : (payload.submissions || payload.data || payload.records || []);
-            if (!Array.isArray(rows)) throw new Error('接口没有返回记录数组');
-            const signature = `${rows.length}:${liveContentSignature(text)}`;
+            const results = await Promise.allSettled(LIVE_QUICKFORM_APIS.map(async api => {
+                const response = await fetch(`${api}?_=${Date.now()}`, {
+                    cache: 'no-store',
+                    headers: { accept: 'application/json' }
+                });
+                if (!response.ok) throw new Error(`${api}: HTTP ${response.status}`);
+                const text = await response.text();
+                const payload = JSON.parse(text);
+                if (payload?.error) throw new Error(`${api}: ${payload.message || payload.error}`);
+                const rows = Array.isArray(payload) ? payload : (payload.submissions || payload.data || payload.records || []);
+                if (!Array.isArray(rows)) throw new Error(`${api}: 接口没有返回记录数组`);
+                return { api, text, rows };
+            }));
+            const successful = results.filter(result => result.status === 'fulfilled').map(result => result.value);
+            if (!successful.length) throw results[0]?.reason || new Error('两个实时接口均不可用');
+            for (const failed of results.filter(result => result.status === 'rejected')) {
+                console.warn('[dashboard] one live source failed:', failed.reason);
+            }
+            const rowMap = new Map();
+            for (const source of successful) {
+                for (const row of source.rows) {
+                    const key = String(row.id || row.submission_id || [
+                        row.dataType, row.eventType, row.timestamp, row.submitted_at,
+                        row.name, row.studentName, row.messageId, row.noteId, row.imageUrl
+                    ].map(value => value ?? '').join('|') || JSON.stringify(row));
+                    rowMap.set(key, row);
+                }
+            }
+            const rows = Array.from(rowMap.values());
+            const signature = successful
+                .map(source => `${source.api}:${source.rows.length}:${liveContentSignature(source.text)}`)
+                .join('|');
             if (signature === lastLiveSignature) return;
             lastLiveSignature = signature;
             if (!mergeLiveRows(rows)) return;
@@ -213,7 +248,10 @@
             students: allStudents.length,
             messages: allMessages.length,
             notes: allNotes.length,
-            images: allAIImages.images.length
+            images: allAIImages.images.length,
+            renderedMessages: messageBoardDiv.querySelectorAll('.msg-item').length,
+            renderedNotes: notesListDiv.querySelectorAll('.msg-item').length,
+            renderedImages: aiGalleryDiv.querySelectorAll('.gallery-item').length
         }));
 
         const hint = document.getElementById('progressHint');

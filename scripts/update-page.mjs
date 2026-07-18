@@ -6,10 +6,13 @@ import { buildPublicSnapshot, mergeRecords } from './data-pipeline.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SITE_FILE = path.join(ROOT, 'site', 'index.html');
 const SOURCE_DIR = path.join(ROOT, 'src');
-const FALLBACK_QUICKFORM_API = 'https://quickform.cn/api/hrisktqeyo/all';
+const FALLBACK_QUICKFORM_APIS = [
+  'https://quickform.cn/api/hrisktqeyo/all',
+  'https://quickform.cn/api/ot5fx3ctmo/all'
+];
 const QUICKFORM_APIS = Array.from(new Set([
   ...String(process.env.QUICKFORM_APIS || '').split(',').map(value => value.trim()).filter(Boolean),
-  FALLBACK_QUICKFORM_API
+  ...FALLBACK_QUICKFORM_APIS
 ]));
 const PUBLIC_DATA_SALT = process.env.PUBLIC_DATA_SALT || 'local-build-only-change-this-in-github-secrets';
 const SEED_DATA_DIR = process.env.SEED_DATA_DIR ? path.resolve(process.env.SEED_DATA_DIR) : '';
@@ -119,6 +122,14 @@ function mergeSnapshots(previous, current, hadSuccessfulFetch) {
   };
   const messages = mergeDetails(previous.messages, current.messages);
   const notes = mergeDetails(previous.notes, current.notes);
+  const previousDynamicImages = Array.isArray(previous.dynamicImages) ? previous.dynamicImages : [];
+  const currentDynamicImages = Array.isArray(current.dynamicImages) ? current.dynamicImages : [];
+  const dynamicImageMap = new Map(previousDynamicImages.map(item => [String(item.url), item]));
+  for (const item of currentDynamicImages) {
+    if (item?.url) dynamicImageMap.set(String(item.url), { ...(dynamicImageMap.get(String(item.url)) || {}), ...item });
+  }
+  const dynamicImages = Array.from(dynamicImageMap.values());
+  const addedDynamicImages = Math.max(0, dynamicImages.length - previousDynamicImages.length);
   const previousSources = new Map((previous.sources || []).map(source => [source.id, source]));
   const sources = current.sources.map(source => {
     const old = previousSources.get(source.id);
@@ -132,6 +143,7 @@ function mergeSnapshots(previous, current, hadSuccessfulFetch) {
     students: mergedStudents,
     messages,
     notes,
+    dynamicImages,
     classes: recomputeClasses(mergedStudents),
     sources,
     summary: {
@@ -141,7 +153,10 @@ function mergeSnapshots(previous, current, hadSuccessfulFetch) {
       messageCount: messages.length,
       noteCount: notes.length,
       likeCount: messages.reduce((sum, message) => sum + asNumber(message.likes), 0),
-      aiImageCount: Math.max(asNumber(previous.summary?.aiImageCount), asNumber(current.summary?.aiImageCount))
+      aiImageCount: Math.max(
+        asNumber(current.summary?.aiImageCount),
+        asNumber(previous.summary?.aiImageCount) + addedDynamicImages
+      )
     }
   };
 }
@@ -158,7 +173,11 @@ async function buildSinglePage(snapshot) {
     if (!anonymousAuthors.has(author)) anonymousAuthors.set(author, `创作者-${String(anonymousAuthors.size + 1).padStart(2, '0')}`);
     return { author: anonymousAuthors.get(author), url };
   });
-  const pageSnapshot = { ...snapshot, images: galleryImages };
+  const galleryMap = new Map(galleryImages.map(item => [String(item.url), item]));
+  for (const item of snapshot.dynamicImages || []) {
+    if (item?.url) galleryMap.set(String(item.url), item);
+  }
+  const pageSnapshot = { ...snapshot, images: Array.from(galleryMap.values()) };
   const safeJson = JSON.stringify(pageSnapshot).replaceAll('<', '\\u003c').replaceAll('&', '\\u0026');
   let html = original
     .replace(/const SUPABASE_URL = '[^']*';/, "const SUPABASE_URL = '';")

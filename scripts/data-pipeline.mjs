@@ -134,18 +134,21 @@ function pseudonym(name, className, salt) {
   return `学员-${digest}`;
 }
 
-function collectImageUrls(value, bucket, depth = 0) {
+function collectImageUrls(value, bucket, owner = '未知', depth = 0) {
   if (depth > 4 || value === null || value === undefined) return;
   const parsed = parseJson(value);
-  if (parsed !== value) return collectImageUrls(parsed, bucket, depth + 1);
+  if (parsed !== value) return collectImageUrls(parsed, bucket, owner, depth + 1);
   if (typeof value === 'string') {
-    if (/^https?:\/\//i.test(value) && (/\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(value) || /upload|image|img/i.test(value))) bucket.add(value);
+    if (/^https?:\/\//i.test(value) && (/\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(value) || /upload|image|img/i.test(value))) {
+      bucket.set(value, { author: String(owner || '未知'), url: value });
+    }
     return;
   }
-  if (Array.isArray(value)) return value.forEach(item => collectImageUrls(item, bucket, depth + 1));
+  if (Array.isArray(value)) return value.forEach(item => collectImageUrls(item, bucket, owner, depth + 1));
   if (typeof value === 'object') {
+    const nextOwner = value.author || value.name || value.studentName || value.student_name || owner;
     for (const [key, nested] of Object.entries(value)) {
-      if (/image|img|photo|picture|作品|图片|生图/i.test(key)) collectImageUrls(nested, bucket, depth + 1);
+      if (/image|img|photo|picture|作品|图片|生图/i.test(key)) collectImageUrls(nested, bucket, nextOwner, depth + 1);
     }
   }
 }
@@ -202,6 +205,7 @@ export function buildPublicSnapshot({ quickformRows = [], supabaseTables = {}, s
     if (messageId) likeCounts.set(messageId, (likeCounts.get(messageId) || 0) + 1);
   }
   for (const row of completeRows) {
+    const recordKind = `${row.dataType || ''} ${row.eventType || ''} ${row.record_type || ''}`;
     if (row.messageContent) {
       const id = String(row.messageId || recordKey(row));
       const old = messages.get(id) || {};
@@ -212,6 +216,14 @@ export function buildPublicSnapshot({ quickformRows = [], supabaseTables = {}, s
       messages.set(commentId, { ...row, id: commentId, likes: 0 });
     }
     if (/笔记/.test(row.dataType || '') && (row.noteContent || row.content)) notes.set(String(row.noteId || row.id || recordKey(row)), row);
+    if (/message|留言/i.test(recordKind) && !row.messageContent && row.content) {
+      const id = String(row.messageId || row.id || recordKey(row));
+      const old = messages.get(id) || {};
+      messages.set(id, { ...old, ...row, id, messageContent: row.content, likes: Math.max(asNumber(old.likes), asNumber(row.likes)) });
+    }
+    if (/note|笔记/i.test(recordKind) && (row.noteContent || row.content)) {
+      notes.set(String(row.noteId || row.id || recordKey(row)), row);
+    }
     if (row.messageId && row.likesCount !== undefined) {
       const messageId = String(row.messageId);
       likeCounts.set(messageId, Math.max(likeCounts.get(messageId) || 0, asNumber(row.likesCount)));
@@ -240,8 +252,13 @@ export function buildPublicSnapshot({ quickformRows = [], supabaseTables = {}, s
     created_at: String(note.created_at || note.noteTime || note.timestamp || note.submitted_at || '')
   })).filter(note => note.content).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at), 'zh-CN'));
 
-  const imageUrls = new Set();
-  completeRows.forEach(row => collectImageUrls(row, imageUrls));
+  const dynamicImageMap = new Map();
+  completeRows.forEach(row => collectImageUrls(
+    row,
+    dynamicImageMap,
+    row.author || row.name || row.studentName || row.student_name
+  ));
+  const dynamicImages = Array.from(dynamicImageMap.values());
   const students = Array.from(studentMap.values()).map(student => ({
     id: pseudonym(student.name, student.className, salt),
     name: student.name,
@@ -289,12 +306,13 @@ export function buildPublicSnapshot({ quickformRows = [], supabaseTables = {}, s
       messageCount: publicMessages.length,
       noteCount: publicNotes.length,
       likeCount: publicMessages.reduce((sum, message) => sum + asNumber(message.likes), 0),
-      aiImageCount: 235 + imageUrls.size
+      aiImageCount: 235 + dynamicImages.length
     },
     classes,
     students,
     messages: publicMessages,
     notes: publicNotes,
+    dynamicImages,
     sources: sourceStatus.map(source => ({
       id: source.id,
       ok: Boolean(source.ok),
