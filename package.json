@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/update-page.mjs",
+    "serve:domestic": "node server/domestic-server.mjs",
     "check": "node --check scripts/update-page.mjs && node --check scripts/data-pipeline.mjs && node --check src/runtime.js"
   },
   "engines": {

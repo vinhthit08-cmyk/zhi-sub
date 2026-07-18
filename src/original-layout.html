@@ -346,7 +346,9 @@
     }
     const ARK_RESPONSES_API = 'https://ark.cn-beijing.volces.com/api/v3/responses';
     const ARK_API_KEY = '';
-    const AI_PROXY_API = 'https://kite-learning-ai-proxy.vinhthit08-cmyk.workers.dev/api/analyze';
+    const AI_PROXY_API = location.hostname.endsWith('github.io')
+        ? 'https://kite-learning-ai-proxy.vinhthit08-cmyk.workers.dev/api/analyze'
+        : '/api/analyze';
     const AI_ANALYSIS_MODEL = 'deepseek-v4-pro-260425';
     const AI_LEARNING_LOTTIE_URL = 'https://img.tofaka.com/autoupload/B87nMnnURZ90fYsO44X0bbKXl_QqVl-bpSwqP4fJO68/20260530/Clwl/fe807c20-1183-11ee-a7e0-738836ffd98a.json';
     const BASE_AI_IMAGE_COUNT = 235;  // AI生图基准235张
@@ -1728,3 +1730,4 @@ ${levelHint}
 </script>
 </body>
 </html>
+
